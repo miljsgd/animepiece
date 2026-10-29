@@ -872,7 +872,11 @@ local WorldBoss = {
     Camp = {
         ["Dual Swordsman"] = Vector3.new(3556.62, 36.54, 2724.08),
         ["Cursed Prodigy"] = Vector3.new(4289.49, 9.45, 403.84),
+        -- BeastUser / Broly arena (coordinates supplied from the game screenshot).
+        ["Broly"] = Vector3.new(-2490.0, -465.9, 669.8),
     },
+    -- Position of the Mad Scientist inside West Island's laboratory.
+    SummonerPositions = { ["Broly"] = Vector3.new(771.6, 5.8, 3294.7) },
     DropCamps = {
         ["Overtime Sorcerer"] = Vector3.new(5489.89, -205.88, -2002.37),
         ["Crimson King"] = Vector3.new(200.94, 5.54, 3561.48),
@@ -880,15 +884,24 @@ local WorldBoss = {
     Summoners = {
         ["Dual Swordsman"] = "Seraphina",
         ["Cursed Prodigy"] = "Noko",
+        ["Broly"] = "Mad Scientist",
     },
     Requirements = {
         ["Dual Swordsman"] = {Item = "Dual Orb", SourceNames = {"Emerald Swordsman"}, Position = Vector3.new(3791.40, 41.83, 2575.56)},
         ["Cursed Prodigy"] = {Item = "Prodigy Orb", SourceNames = {"White Panda", "Panda"}, Position = Vector3.new(4666.56, 16.12, 225.38), BossAliases = {"Itadori"}},
+        -- Frieza's coordinates already exist in the standard boss catalog.
+        -- Item spellings vary between guides and versions of the experience.
+        ["Broly"] = {
+            Item = "Mod Chip", ItemAliases = {"Mad Chip", "Mode Chip"},
+            SourceNames = {"Frieza", "Frieeza"},
+            Position = Vector3.new(1225.69, 29.45, 2788.45),
+            BossAliases = {"Beast", "BeastUser", "Beast User", "Broly"},
+        },
     },
     MaterialTarget = nil,
     Phase = nil,
     Drops = setmetatable({}, {__mode = "k"}),
-    DropKeys = {dualorb = true, prodigyorb = true},
+    DropKeys = {dualorb = true, prodigyorb = true, modchip = true, madchip = true, modechip = true},
     SearchRadius = 250,
     Stop = nil,
 }
@@ -10866,7 +10879,7 @@ runSection("AutoFarm", function()
 
     BossDropdown = Instance.new("Frame")
     BossDropdown.Name = "WorldBossDropdown"
-    BossDropdown.Size = UDim2.new(1, -16, 0, 89)
+    BossDropdown.Size = UDim2.new(1, -16, 0, 129)
     BossDropdown.Position = UDim2.fromOffset(8, 80)
     BossDropdown.BackgroundColor3 = Theme.Card
     BossDropdown.BorderSizePixel = 0
@@ -10879,6 +10892,7 @@ runSection("AutoFarm", function()
 
     -- Manual entries, sorted by recommended level. No scan is used to fill this list.
     local summonBossCatalog = {
+        {name = "Broly", level = 130},
         {name = "Dual Swordsman", level = 235},
         {name = "Cursed Prodigy", level = 245},
     }
@@ -11256,6 +11270,18 @@ runSection("AutoFarm", function()
         text = text:gsub("%s*[x×]%s*%d+%s*$", ""):gsub("^%s*%d+%s*[x×]%s*", "")
         return text:gsub("[^%w]", "")
     end
+    -- Matches item display names in the game's inventory and world. Some guides
+    -- call the same Frieza drop Mod Chip, Mad Chip, or Mode Chip.
+    function SummonMaterial.itemKeys(recipe)
+        local keys = {[SummonMaterial.key(recipe.Item)] = true}
+        for _, alias in ipairs(recipe.ItemAliases or {}) do
+            keys[SummonMaterial.key(alias)] = true
+        end
+        return keys
+    end
+    function SummonMaterial.itemMatches(value, recipe)
+        return SummonMaterial.itemKeys(recipe)[SummonMaterial.key(value)] == true
+    end
     function SummonMaterial.number(value)
         if value == true then return 1 end
         if value == false then return 0 end
@@ -11309,13 +11335,17 @@ runSection("AutoFarm", function()
         if not force and SummonMaterial.inventoryItem == recipe.Item and now < SummonMaterial.inventoryAt then
             return SummonMaterial.inventoryCount
         end
-        local wanted, toolCount, dataCount, guiCount, dataSeen = SummonMaterial.key(recipe.Item), 0, 0, 0, false
+        local wanted, accepted = SummonMaterial.key(recipe.Item), SummonMaterial.itemKeys(recipe)
+        local toolCount, dataCount, guiCount, dataSeen = 0, 0, 0, false
+        local function matchesItem(value)
+            return accepted[SummonMaterial.key(value)] == true
+        end
         local function toolMatches(tool)
-            if SummonMaterial.key(tool.Name) == wanted or SummonMaterial.key(tool.ToolTip) == wanted then return true end
+            if matchesItem(tool.Name) or matchesItem(tool.ToolTip) then return true end
             for field, value in pairs(tool:GetAttributes()) do
                 local key = string.lower(field):gsub("[^%a]", "")
                 if (key == "itemname" or key == "name" or key == "itemid")
-                    and SummonMaterial.key(value) == wanted then return true end
+                    and matchesItem(value) then return true end
             end
             return false
         end
@@ -11330,17 +11360,17 @@ runSection("AutoFarm", function()
             end
         end
         for field, value in pairs(LocalPlayer:GetAttributes()) do
-            if SummonMaterial.key(field) == wanted then
+            if matchesItem(field) then
                 local count = SummonMaterial.number(value)
                 if count ~= nil then dataSeen, dataCount = true, math.max(dataCount, count) end
             end
         end
         for object in pairs(World.stats) do
             if object.Parent and object:IsDescendantOf(LocalPlayer) and not object:FindFirstAncestorWhichIsA("PlayerGui") then
-                if SummonMaterial.key(object.Name) == wanted then
+                if matchesItem(object.Name) then
                     local count = object:IsA("ValueBase") and SummonMaterial.number(object.Value) or SummonMaterial.quantity(object)
                     if count ~= nil then dataSeen, dataCount = true, math.max(dataCount, count) end
-                elseif object:IsA("StringValue") and SummonMaterial.key(object.Value) == wanted
+                elseif object:IsA("StringValue") and matchesItem(object.Value)
                     and SummonMaterial.inInventory(object) then
                     local count = SummonMaterial.quantity(object.Parent)
                     if count ~= nil then dataSeen, dataCount = true, math.max(dataCount, count) end
@@ -11350,7 +11380,7 @@ runSection("AutoFarm", function()
         for object in pairs(World.gui) do
             if object.Parent and not object:IsDescendantOf(ScreenGui)
                 and (object:IsA("TextLabel") or object:IsA("TextButton"))
-                and SummonMaterial.key(object.Text) == wanted and SummonMaterial.inInventory(object) then
+                and matchesItem(object.Text) and SummonMaterial.inInventory(object) then
                 local row = object.Parent
                 for _ = 1, 3 do
                     if not row or row:IsA("ScreenGui") or row:IsA("PlayerGui") then break end
@@ -11420,9 +11450,9 @@ runSection("AutoFarm", function()
         if not Motion.request("Farm", model, math.clamp(tonumber(farmDistance) or 1, 1, 10), "mob") then return end
     end
     function SummonMaterial.findDrop(recipe, root)
-        local wanted, nearest, best = SummonMaterial.key(recipe.Item), nil, math.huge
+        local nearest, best = nil, math.huge
         for object, key in pairs(WorldBoss.Drops) do
-            if key == wanted and object.Parent and object:IsDescendantOf(workspace) and not World.held(object)
+            if SummonMaterial.itemMatches(key, recipe) and object.Parent and object:IsDescendantOf(workspace) and not World.held(object)
                 and os.clock() >= (SummonMaterial.dropCooldown[object] or 0) then
                 local part = World.root(object)
                 if part then
@@ -11528,6 +11558,52 @@ runSection("AutoFarm", function()
         end
     end
 
+    -- After the Mad Scientist consumes a chip, Broly's fight may require
+    -- stepping into a raid portal. Only look for clearly named portal parts
+    -- near the known laboratory coordinate, never random parts in the map.
+    local function tryBrolyPortal(token)
+        if WorldBoss.Selected ~= "Broly" or not bossSessionActive(token) then return false end
+        local lab = WorldBoss.SummonerPositions.Broly
+        local character, root = Motion.character()
+        if not character or not root or (root.Position - lab).Magnitude > 100 then return false end
+        local ok, near = pcall(function() return workspace:GetPartBoundsInRadius(lab, 70) end)
+        if not ok or not near then return false end
+        local portal, closest = nil, math.huge
+        for _, part in ipairs(near) do
+            if part:IsA("BasePart") and part:IsDescendantOf(workspace) and not part:IsDescendantOf(character) then
+                local node, named, depth = part, false, 0
+                while node and node ~= workspace and depth < 5 do
+                    local key = tostring(node.Name):lower()
+                    if key:find("portal", 1, true) or key:find("raidgate", 1, true)
+                        or key:find("brolygate", 1, true) or key:find("beastgate", 1, true) then
+                        named = true; break
+                    end
+                    node, depth = node.Parent, depth + 1
+                end
+                if named then
+                    local distance = (part.Position - lab).Magnitude
+                    if distance < closest then portal, closest = part, distance end
+                end
+            end
+        end
+        if not portal then return false end
+        local point = portal.Position + Vector3.new(0, math.max(0.5, math.min(3, portal.Size.Y * 0.2)), 0)
+        if not Motion.allowed("Farm") then return false end
+        Motion.release("Farm")
+        local moved = Motion.pivotDirect(character, root, CFrame.new(point))
+        if moved ~= true then return false end
+        task.wait(0.25)
+        local _, currentRoot = Motion.character()
+        if currentRoot and currentRoot.Parent and portal.Parent and type(firetouchinterest) == "function" then
+            pcall(function()
+                firetouchinterest(currentRoot, portal, 0)
+                task.wait(0.1)
+                firetouchinterest(currentRoot, portal, 1)
+            end)
+        end
+        return true
+    end
+
     local function summonViaNPC(token, camp)
         if not bossSessionActive(token) or bossNearCamp(camp) then return false end
         local selected = WorldBoss.Selected
@@ -11537,7 +11613,8 @@ runSection("AutoFarm", function()
         local beforeCount = SummonMaterial.count(recipe)
         local npc = summonerNPC(npcName)
         if not npc then
-            bossTeleportCamp(camp, token)
+            local npcCamp = WorldBoss.SummonerPositions[selected] or camp
+            bossTeleportCamp(npcCamp, token)
             task.wait(0.8)
             if not bossSessionActive(token) then return false end
             npc = summonerNPC(npcName)
@@ -11587,12 +11664,21 @@ runSection("AutoFarm", function()
             warnSummoner("Could not open " .. npcName .. " dialogue. Check the NPC interaction UI.")
         end
         bossReleaseInteraction()
-        if bossSessionActive(token) and SummonMaterial.count(recipe, true) < beforeCount then
+        local chipUsed = bossSessionActive(token) and SummonMaterial.count(recipe, true) < beforeCount
+        if chipUsed then
             SummonMaterial.pendingUntil = os.clock() + 12
             SummonMaterial.arrived = false
+            if selected == "Broly" then
+                -- A laboratory portal may need to be touched after the summon.
+                if not tryBrolyPortal(token) then
+                    warnSummoner("Broly chip used; portal was not identified by name. Will check the arena.")
+                end
+                task.wait(0.5)
+            end
         end
         if bossSessionActive(token) then
             -- Search again at the selected boss coordinates, away from the summon NPC.
+            -- No server remote is guessed: this is a client-side travel/scan attempt.
             bossTeleportCamp(camp, token)
             task.wait(1.0)
             completed = completed or bossNearCamp(camp) ~= nil
