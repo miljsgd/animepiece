@@ -8285,6 +8285,33 @@ runSection("FruitShop", function()
         end
     end
 
+    -- Read the stock menu's own countdown. This is the restock timer,
+    -- NOT the interval used to check stock prices/UI.
+    function B.trackRestockTimer(object)
+        if not object or not object.Parent then return false end
+        if not (object:IsA("TextLabel") or object:IsA("TextButton")) then return false end
+        local text = B.text(object)
+        local hours, minutes, seconds = text:match("(%d+):(%d%d):(%d%d)")
+        local remaining
+        if hours then
+            remaining = tonumber(hours) * 3600 + tonumber(minutes) * 60 + tonumber(seconds)
+        else
+            local mm, ss = text:match("(%d+):(%d%d)")
+            -- Short clocks are only accepted inside the Fruit Stock menu.
+            if mm and ss then remaining = tonumber(mm) * 60 + tonumber(ss) end
+        end
+        if not remaining or remaining < 0 or remaining > 604800 then return false end
+        local now = os.clock()
+        local expected = B.remaining and math.max(0, B.remaining - (now - (B.remainingObservedAt or now)))
+        if expected and remaining > expected + 8 then
+            B.cycle = B.cycle + 1
+            B.invalidate()
+        end
+        B.remaining = remaining
+        B.remainingObservedAt = now
+        return true
+    end
+
     function B.scan()
         B.root = B.findRoot()
         B.rows, B.dirty, B.nextScan = {}, false, os.clock() + 5
@@ -8318,19 +8345,9 @@ runSection("FruitShop", function()
                 B.bound[object] = connections
             if object:IsA("TextLabel") or object:IsA("TextButton") then
                 connections[#connections + 1] = object:GetPropertyChangedSignal("Text"):Connect(function()
-                    local h, m, s = B.text(object):match("^(%d+):(%d%d):(%d%d)$")
-                    if h then
-                        local remaining = tonumber(h) * 3600 + tonumber(m) * 60 + tonumber(s)
-                        if B.remaining and remaining > B.remaining + 5 then B.cycle = B.cycle + 1; B.invalidate() end
-                        B.remaining = remaining
-                    else B.invalidate() end
+                    if not B.trackRestockTimer(object) then B.invalidate() end
                 end)
-                local h, m, s = B.text(object):match("^(%d+):(%d%d):(%d%d)$")
-                if h then
-                    local remaining = tonumber(h) * 3600 + tonumber(m) * 60 + tonumber(s)
-                    if B.remaining and remaining > B.remaining + 5 then B.cycle = B.cycle + 1 end
-                    B.remaining = remaining
-                end
+                B.trackRestockTimer(object)
             end
             if object:IsA("GuiObject") then connections[#connections + 1] = object:GetPropertyChangedSignal("Visible"):Connect(B.invalidate) end
             end
@@ -9041,10 +9058,34 @@ runSection("FruitShopUI", function()
     stockTitle.TextXAlignment = Enum.TextXAlignment.Left
     stockTitle.Parent = stockCard
 
+    local stockTimer = Instance.new("TextLabel")
+    stockTimer.Name = "FruitStockRestockCountdown"
+    stockTimer.Size = UDim2.new(1, -24, 0, 19)
+    stockTimer.Position = UDim2.fromOffset(12, 38)
+    stockTimer.BackgroundTransparency = 1
+    stockTimer.Text = "Next restock: waiting for shop timer"
+    stockTimer.TextColor3 = Theme.Accent2
+    stockTimer.Font = Enum.Font.GothamBold
+    stockTimer.TextSize = 12
+    stockTimer.TextXAlignment = Enum.TextXAlignment.Left
+    stockTimer.Parent = stockCard
+
+    local stockCheck = Instance.new("TextLabel")
+    stockCheck.Name = "FruitStockScanCountdown"
+    stockCheck.Size = UDim2.new(1, -24, 0, 17)
+    stockCheck.Position = UDim2.fromOffset(12, 59)
+    stockCheck.BackgroundTransparency = 1
+    stockCheck.Text = "Next stock check: --"
+    stockCheck.TextColor3 = Theme.TextDim
+    stockCheck.Font = Enum.Font.Gotham
+    stockCheck.TextSize = 11
+    stockCheck.TextXAlignment = Enum.TextXAlignment.Left
+    stockCheck.Parent = stockCard
+
     local stockInfo = Instance.new("TextLabel")
     stockInfo.Name = "FruitStockList"
     stockInfo.Size = UDim2.new(1, -24, 0, 62)
-    stockInfo.Position = UDim2.fromOffset(12, 40)
+    stockInfo.Position = UDim2.fromOffset(12, 84)
     stockInfo.BackgroundTransparency = 1
     stockInfo.Text = "Open the Fruit Stock shop to detect available fruits."
     stockInfo.TextColor3 = Theme.TextDim
@@ -9057,6 +9098,31 @@ runSection("FruitShopUI", function()
 
     local stockRunning = true
     local lastKnownStock = nil
+    local nextStockScan = 0
+    local function countdownText(seconds)
+        seconds = math.max(0, math.ceil(seconds))
+        return string.format("%02d:%02d:%02d", math.floor(seconds / 3600),
+            math.floor(seconds / 60) % 60, seconds % 60)
+    end
+    local function updateStockCountdown()
+        if destroyed or not stockRunning or not stockTimer.Parent then return end
+        if FruitShop.remainingObservedAt and FruitShop.remaining ~= nil then
+            local elapsed = os.clock() - FruitShop.remainingObservedAt
+            local seconds = math.max(0, FruitShop.remaining - elapsed)
+            if seconds <= 0 then
+                stockTimer.Text = "Next restock: updating / reopen stock"
+            else
+                stockTimer.Text = "Next restock: " .. countdownText(seconds)
+            end
+        else
+            stockTimer.Text = "Next restock: open Fruit Stock to read timer"
+        end
+        if nextStockScan > 0 then
+            stockCheck.Text = "Next stock check: " .. string.format("%ds", math.max(0, math.ceil(nextStockScan - os.clock())))
+        else
+            stockCheck.Text = "Next stock check: --"
+        end
+    end
     local function formattedPrice(value)
         if type(value) ~= "number" then return "" end
         local num = tostring(math.floor(value + 0.5))
@@ -9071,7 +9137,7 @@ runSection("FruitShopUI", function()
         if not ok then
             stockInfo.Text = "Could not read Fruit Stock yet."
             stockInfo.TextColor3 = Theme.TextDim
-            stockCard.Size = UDim2.new(1, 0, 0, 106)
+            stockCard.Size = UDim2.new(1, 0, 0, 150)
             return
         end
         local available = {}
@@ -9111,15 +9177,20 @@ runSection("FruitShopUI", function()
         stockInfo.TextColor3 = tint
         local height = math.max(48, math.min(290, lineCount * 20 + 6))
         stockInfo.Size = UDim2.new(1, -24, 0, height)
-        stockCard.Size = UDim2.new(1, 0, 0, 48 + height + 10)
+        stockCard.Size = UDim2.new(1, 0, 0, 92 + height + 10)
     end
 
     local stockWorker = task.spawn(function()
-        -- Delay until the world's GUI index is populated.
+        -- Read the real shop timer if the game has replicated it. Repaint the
+        -- countdown every half-second, but only scan stock every four seconds.
         task.wait(2)
         while stockRunning and not destroyed do
-            updateStockInfo()
-            task.wait(4)
+            if os.clock() >= nextStockScan then
+                updateStockInfo()
+                nextStockScan = os.clock() + 4
+            end
+            updateStockCountdown()
+            task.wait(0.5)
         end
     end)
     Stoppers.FruitStockUI = function()
