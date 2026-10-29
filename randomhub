@@ -1,5 +1,5 @@
--- RANDOM HUB | ANIME PIECE V1.3 | SCRIPT SEPARADO | SEM KEY
--- RANDOM HUB V1.3
+-- RANDOM HUB | ANIME PIECE V1.31 | SCRIPT SEPARADO | SEM KEY
+-- RANDOM HUB V1.31
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -62,7 +62,7 @@ for _, name in ipairs({"FlyUI", "FlyToggle"}) do
 end
 
 local CONFIG = {
-    Version = "1.3",
+    Version = "1.31",
     UISize = UDim2.fromOffset(600, 460),
     UIOffset = UDim2.new(0.5, -300, 0.5, -230),
     UIScale = 1,
@@ -390,7 +390,7 @@ runSection("Header", function()
     Title.Size = UDim2.new(1, -180, 0, 24)
     Title.Position = UDim2.new(0, 74, 0, 16)
     Title.BackgroundTransparency = 1
-    Title.Text = "RANDOM HUB"
+    Title.Text = "RandomHub | Anime Piece"
     Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.Font = Enum.Font.GothamBold
     Title.TextSize = 18
@@ -566,7 +566,7 @@ runSection("Navigation", function()
         label.Position = UDim2.new(0, 12, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = id == "AutoQuest" and "Auto Quest" or (id == "AutoFarm" and "Auto Farm" or (id == "AutoItems" and "Auto Items" or (id == "AutoStats" and "Auto Stats" or id)))
-        label.TextColor3 = id == "Home" and Color3.fromRGB(245, 248, 255) or Color3.fromRGB(190, 201, 224)
+        label.TextColor3 = id == "Home" and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
         label.Font = Enum.Font.GothamBold
         label.TextSize = 13
         label.TextXAlignment = Enum.TextXAlignment.Left
@@ -610,8 +610,8 @@ runSection("Navigation", function()
             info.button.BackgroundTransparency = active and 0 or 1
             info.indicator.Visible = active
             info.stroke.Transparency = active and 0.28 or 1
-            info.label.TextTransparency = active and 0 or 0.08
-            info.label.TextColor3 = active and Color3.fromRGB(245, 248, 255) or Color3.fromRGB(190, 201, 224)
+            info.label.TextTransparency = 0
+            info.label.TextColor3 = active and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
         end
     end
     for name, info in pairs(Tabs) do
@@ -631,14 +631,14 @@ runSection("Home", function()
     local HomePage = Pages.Home
     -- Update notes shown only on the Home tab.
     local UpdateCard = Instance.new("Frame")
-    UpdateCard.Name = "UpdateV13Card"
+    UpdateCard.Name = "UpdateV131Card"
     UpdateCard.Size = UDim2.new(1, 0, 0, 270)
     UpdateCard.Position = UDim2.fromOffset(0, 68)
-    UpdateCard.BackgroundColor3 = Theme.BgSecondary
+    UpdateCard.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     UpdateCard.BorderSizePixel = 0
     UpdateCard.Parent = HomePage
     addCorner(UpdateCard, 14)
-    addStroke(UpdateCard, Theme.Stroke, 1, 0.35)
+    addStroke(UpdateCard, Color3.fromRGB(0, 0, 0), 1, 1)
 
     local function updateLabel(name, value, y, height, font, size, color)
         local label = Instance.new("TextLabel")
@@ -656,25 +656,18 @@ runSection("Home", function()
         return label
     end
 
-    updateLabel("UpdateTitle", "UPDATE VERSION V1.3", 14, 28, Enum.Font.GothamBold, 19, Theme.Text)
-    local Separator = Instance.new("Frame")
-    Separator.Name = "UpdateSeparator"
-    Separator.Position = UDim2.fromOffset(18, 47)
-    Separator.Size = UDim2.new(1, -36, 0, 1)
-    Separator.BackgroundColor3 = Theme.Accent2
-    Separator.BorderSizePixel = 0
-    Separator.Parent = UpdateCard
-
-    updateLabel("UpdateSubtitle", "NEW FEATURES", 57, 22, Enum.Font.GothamBold, 13, Theme.Accent2)
+    updateLabel("UpdateTitle", "UPDATE VERSION V1.31", 14, 28, Enum.Font.GothamBold, 19, Theme.Text)
+    -- Home patch notes: plain black background, no blue separator/subtitle.
+    -- Only the + feature lines retain the blue highlight.
     local features = {
-        "Improved Auto Farm",
-        "Improved Safe Farm",
-        "Add Auto All Sword",
+        "Improved Get Quest",
+        "Add Auto Spin Fruit",
+        "Other Improvements",
     }
     for index, feature in ipairs(features) do
-        updateLabel("Feature" .. index, "+ " .. feature, 85 + (index - 1) * 23, 21, Enum.Font.Gotham, 13, Theme.Text)
+        updateLabel("Feature" .. index, "+ " .. feature, 61 + (index - 1) * 27, 23, Enum.Font.Gotham, 14, Theme.Accent2)
     end
-    updateLabel("UpdateVersion", "Version: V1.3", 237, 21, Enum.Font.GothamBold, 12, Theme.TextDim)
+    updateLabel("UpdateVersion", "Version: V1.31", 237, 21, Enum.Font.GothamBold, 12, Theme.TextDim)
 
     local DiscordCard = Instance.new("Frame")
     DiscordCard.Name = "DiscordCard"
@@ -805,6 +798,67 @@ local function createCombatToggle(parent, objectName, titleText, layoutOrder, ca
     return setState, function() return enabled end, card
 end
 
+
+local function addDropdownIndicator(button, panel, keepOriginalLayout)
+    -- A single clickable header, matching Select Skills.
+    local card = button.Parent
+    if keepOriginalLayout then card = nil end
+    local footer = card and card:FindFirstChild("TeleportToIsland")
+    if card then
+        card.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+        card.ClipsDescendants = true
+        button.Size = UDim2.new(1, 0, 0, 58)
+        button.Position = UDim2.fromOffset(0, 0)
+        panel.Position = UDim2.fromOffset(9, 58)
+        panel.Size = UDim2.new(1, -18, panel.Size.Y.Scale, panel.Size.Y.Offset)
+    end
+    if not keepOriginalLayout then
+        button.TextColor3 = Theme.Text
+        button.Font = Enum.Font.GothamBold
+        button.TextSize = 14
+        button.TextXAlignment = Enum.TextXAlignment.Left
+    end
+    button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    button.BackgroundTransparency = 0
+    button.AutoButtonColor = false
+    panel.BackgroundColor3 = Color3.fromRGB(13, 13, 17)
+    panel.BackgroundTransparency = 0
+    local indicator=Instance.new("TextLabel")
+    indicator.Name="DropdownIndicator"
+    indicator.Size=UDim2.new(0,18,1,0)
+    indicator.Position=UDim2.new(1,-22,0,0)
+    indicator.BackgroundTransparency=1
+    indicator.TextColor3=Theme.Text
+    indicator.Font=Enum.Font.GothamBold
+    indicator.TextSize=16
+    indicator.ZIndex=button.ZIndex+1
+    indicator.Active=false
+    indicator.Parent=button
+    button.TextTruncate=Enum.TextTruncate.AtEnd
+    local padding=button:FindFirstChildOfClass("UIPadding")
+    if not padding then
+        padding=Instance.new("UIPadding")
+        padding.PaddingLeft=UDim.new(0,8)
+        padding.Parent=button
+    end
+    if not keepOriginalLayout then padding.PaddingLeft=UDim.new(0,16) end
+    padding.PaddingRight=UDim.new(0,math.max(26,padding.PaddingRight.Offset))
+    local function render()
+        indicator.Text=panel.Visible and "-" or "+"
+        if card then
+            local bottom = panel.Visible and (58 + panel.Size.Y.Offset) or 58
+            local height = panel.Visible and (bottom + 8) or 58
+            if footer then
+                footer.Position = UDim2.fromOffset(8, bottom + 8)
+                height = bottom + 58
+            end
+            card.Size = UDim2.new(1, 0, 0, height)
+        end
+    end
+    connect(panel:GetPropertyChangedSignal("Visible"),render)
+    render()
+    return indicator
+end
 
 local combatAutoAttackClickOffscreen = nil
 
@@ -2878,20 +2932,282 @@ runSection("Combat", function()
         end
     end
 
-    local function combatFindEquipTool(character, backpack, slot)
-        local remembered
-        for _, container in ipairs({character, backpack}) do
-            for _, tool in ipairs(container:GetChildren()) do
-                if tool:IsA("Tool") then
-                    local toolSlot = combatToolSlot(tool)
-                    if toolSlot == slot then return tool end
-                    if not toolSlot and CombatCfg.SelectedToolName and tool.Name == CombatCfg.SelectedToolName then
-                        remembered = remembered or tool
+    -- Local inventory / hotbar only. Never infer hotbar order from Backpack order.
+    local EquipSlots = {records={},ordered={},knownSlots={},dirty=true,nextRefresh=0,watched={},scopeConnections={},characterConnections={},hotbarRoots={}}
+    function EquipSlots.key(value)
+        return tostring(value or ""):lower():gsub("<[^>]*>",""):gsub("[^%w]","")
+    end
+    function EquipSlots.number(value)
+        local n=tonumber(value)
+        if n==0 then n=10 end
+        return n and SLOT_KEYS[n] and n or nil
+    end
+    function EquipSlots.toolName(tool)
+        for _,field in ipairs({"DisplayName","ItemName","WeaponName","ToolName"}) do
+            local value=tool:GetAttribute(field)
+            if type(value)=="string" and value~="" then return value end
+        end
+        return tool.Name
+    end
+    function EquipSlots.markDirty()
+        EquipSlots.dirty=true
+        if destroyed or EquipSlots.timer then return end
+        EquipSlots.timer=task.delay(0.2,function()
+            EquipSlots.timer=nil
+            if not destroyed then EquipSlots.refresh(false) end
+        end)
+    end
+    function EquipSlots.watch(object,wanted)
+        wanted[object]=true
+        if EquipSlots.watched[object] then return end
+        local listeners={}
+        local function listen(signal)
+            local ok,c=pcall(function() return signal:Connect(EquipSlots.markDirty) end)
+            if ok then listeners[#listeners+1]=c end
+        end
+        listen(object:GetPropertyChangedSignal("Name"))
+        listen(object.AttributeChanged)
+        if object:IsA("GuiObject") then listen(object:GetPropertyChangedSignal("LayoutOrder")) end
+        if object:IsA("TextLabel") or object:IsA("TextButton") then listen(object:GetPropertyChangedSignal("Text"))
+        elseif object:IsA("ValueBase") then listen(object:GetPropertyChangedSignal("Value")) end
+        EquipSlots.watched[object]=listeners
+    end
+    function EquipSlots.hotbar(object)
+        if not object or object==ScreenGui or object:IsDescendantOf(ScreenGui) then return nil end
+        local node=object
+        for _=1,14 do
+            if not node or node==game then break end
+            local name=EquipSlots.key(node.Name)
+            if name:find("hotbar",1,true) or name:find("quickbar",1,true) or name:find("quickslot",1,true)
+                or name:find("actionbar",1,true) or name:find("toolbar",1,true) or name:find("itembar",1,true)
+                or name=="equipslots" then return node end
+            node=node.Parent
+        end
+    end
+    function EquipSlots.guiSlot(object,root)
+        local node=object
+        while node and node~=root do
+            local slot=combatToolSlot(node)
+            if not slot then
+                local name=EquipSlots.key(node.Name)
+                slot=EquipSlots.number(name:match("^slot(%d+)$") or name:match("^hotbarslot(%d+)$")
+                    or name:match("^itemslot(%d+)$") or name:match("^(%d+)$"))
+                if not slot and (node:IsA("TextLabel") or node:IsA("TextButton"))
+                    and (name:find("key",1,true) or name:find("number",1,true) or name=="slot") then
+                    slot=EquipSlots.number(tostring(node.Text):match("^%s*%[?(%d+)%]?%s*$"))
+                    if slot then return slot,node.Parent end
+                end
+                if not slot and node.Parent==root and (node:IsA("GuiButton") or node:IsA("Frame")) then
+                    local stack,visited={node},0
+                    while #stack>0 and visited<25 and not slot do
+                        local child=table.remove(stack)
+                        local field=EquipSlots.key(child.Name)
+                        if (child:IsA("TextLabel") or child:IsA("TextButton"))
+                            and (field:find("key",1,true) or field:find("number",1,true)) then
+                            slot=EquipSlots.number(tostring(child.Text):match("^%s*%[?(%d+)%]?%s*$"))
+                        end
+                        if child==node or child.Parent==node then
+                            for _,descendant in ipairs(child:GetChildren()) do stack[#stack+1]=descendant end
+                        end
+                        visited=visited+1
                     end
+                    -- LayoutOrder 0 means "unspecified", not hotbar key 0.
+                    if not slot and node.LayoutOrder~=0 then slot=EquipSlots.number(node.LayoutOrder) end
+                end
+            end
+            if slot then return slot,node end
+            node=node.Parent
+        end
+    end
+    function EquipSlots.readCell(cell,wanted)
+        local best,score,tool=nil,-1,nil
+        EquipSlots.watch(cell,wanted)
+        local function consider(value,weight)
+            if type(value)~="string" then return end
+            local clean=value:gsub("<[^>]*>",""):match("^%s*(.-)%s*$")
+            local key=EquipSlots.key(clean)
+            if clean=="" or #clean>90 or tonumber(clean) or clean:match("^%d+[%%+]$")
+                or key=="empty" or key=="none" or key=="slot" or key=="toolname" or key=="itemname" then return end
+            if weight>score then best,score=clean,weight end
+        end
+        for _,field in ipairs({"ToolName","ItemName","DisplayName","WeaponName"}) do consider(cell:GetAttribute(field),30) end
+        local stack,visited={{cell,0}},0
+        while #stack>0 and visited<60 do
+            local item=table.remove(stack)
+            local node,depth=item[1],item[2]
+            local field=EquipSlots.key(node.Name)
+            if node:IsA("TextLabel") or node:IsA("TextButton") or node:IsA("ValueBase") then EquipSlots.watch(node,wanted) end
+            if node:IsA("ObjectValue") and node.Value and node.Value:IsA("Tool") then tool=node.Value
+            elseif (node:IsA("TextLabel") or node:IsA("TextButton")) and not field:find("cooldown",1,true)
+                and not field:find("quantity",1,true) and not field:find("count",1,true) and not field:find("key",1,true)
+                and not field:find("number",1,true) and field~="level" then
+                local named=field:find("name",1,true) or field=="title" or field=="item" or field=="tool"
+                consider(node.Text,named and 20 or 5)
+                EquipSlots.watch(node,wanted)
+            elseif node:IsA("StringValue") and (field:find("name",1,true) or field=="tool" or field=="item") then
+                consider(node.Value,25);EquipSlots.watch(node,wanted)
+            end
+            if depth<4 then for _,child in ipairs(node:GetChildren()) do stack[#stack+1]={child,depth+1} end end
+            visited=visited+1
+        end
+        if tool then return EquipSlots.toolName(tool),tool end
+        return best
+    end
+    function EquipSlots.refresh(force)
+        local now=os.clock()
+        if not force and not EquipSlots.dirty and now<EquipSlots.nextRefresh then return end
+        EquipSlots.dirty,EquipSlots.nextRefresh=false,now+0.75
+        local records,known,tools,wanted={}, {}, {}, {}
+        local function put(slot,name,tool,priority)
+            if not slot or not name then return end
+            if not records[slot] or priority>(records[slot].priority or 0) then
+                records[slot]={id=slot,slot=slot,name=name,tool=tool,toolName=tool and tool.Name,priority=priority}
+            end
+        end
+        local function inventory(container)
+            if not container then return end
+            for _,tool in ipairs(container:GetChildren()) do
+                if tool:IsA("Tool") then
+                    tools[#tools+1]=tool;EquipSlots.watch(tool,wanted)
+                    local slot=combatToolSlot(tool)
+                    if slot then known[slot]=true;put(slot,EquipSlots.toolName(tool),tool,3) end
                 end
             end
         end
+        inventory(LocalPlayer.Character)
+        inventory(LocalPlayer:FindFirstChildOfClass("Backpack"))
+        local cells={}
+        local function inspect(object)
+            local root=EquipSlots.hotbar(object)
+            if not root then return end
+            EquipSlots.hotbarRoots[root]=true
+            local slot,cell=EquipSlots.guiSlot(object,root)
+            if slot and cell and not cells[cell] then
+                cells[cell]=true;known[slot]=true
+                local name,tool=EquipSlots.readCell(cell,wanted)
+                if name then put(slot,name,tool,2) end
+            end
+        end
+        -- World.gui is already maintained by the shared local GUI index.
+        local function localGui(scope)
+            if not scope then return end
+            local stack,visited={scope},0
+            while #stack>0 and visited<2500 do
+                local node=table.remove(stack)
+                if node~=ScreenGui then
+                    inspect(node)
+                    for _,child in ipairs(node:GetChildren()) do stack[#stack+1]=child end
+                end
+                visited=visited+1
+            end
+        end
+        -- This also works before World.ready, and with the standard Roblox hotbar.
+        if not EquipSlots.guiReady or force then
+            for object in pairs(World.gui) do if object.Parent then inspect(object) end end
+            localGui(LocalPlayer:FindFirstChildOfClass("PlayerGui"))
+            pcall(function()
+                local robloxGui=CoreGui and CoreGui:FindFirstChild("RobloxGui")
+                localGui(robloxGui and robloxGui:FindFirstChild("Backpack"))
+            end)
+            EquipSlots.guiReady=true
+        else
+            for root in pairs(EquipSlots.hotbarRoots) do
+                if root.Parent then localGui(root) else EquipSlots.hotbarRoots[root]=nil end
+            end
+        end
+        local names={}
+        for _,tool in ipairs(tools) do
+            local key=EquipSlots.key(tool.Name)
+            names[key]=names[key] or {};names[key][#names[key]+1]=tool
+        end
+        for _,record in pairs(records) do
+            if not record.tool then
+                local candidates=names[EquipSlots.key(record.name)]
+                if candidates and #candidates==1 then
+                    local actual=combatToolSlot(candidates[1])
+                    if not actual or actual==record.slot then record.tool=candidates[1];record.toolName=candidates[1].Name end
+                end
+            end
+        end
+        for _,tool in ipairs(tools) do
+            if not combatToolSlot(tool) then
+                local mapped=false
+                for _,record in pairs(records) do
+                    if record.tool==tool or EquipSlots.key(record.name)==EquipSlots.key(tool.Name)
+                        or EquipSlots.key(record.name)==EquipSlots.key(EquipSlots.toolName(tool)) then mapped=true;break end
+                end
+                -- A real Tool with no published slot can still be equipped by name.
+                -- Its keyboard number is never guessed from inventory insertion order.
+                if not mapped then
+                    local id="tool:"..tool.Name
+                    records[id]=records[id] or {id=id,name=EquipSlots.toolName(tool),tool=tool,toolName=tool.Name}
+                end
+            end
+        end
+        local ordered={}
+        for _,record in pairs(records) do
+            record.label=record.slot and (record.name.." [Slot "..(record.slot==10 and "0" or record.slot).."]") or record.name
+            ordered[#ordered+1]=record
+        end
+        table.sort(ordered,function(a,b)
+            if a.slot and b.slot then return a.slot<b.slot end
+            if (a.slot~=nil)~=(b.slot~=nil) then return a.slot~=nil end
+            return a.name<b.name
+        end)
+        for object,listeners in pairs(EquipSlots.watched) do
+            if not wanted[object] then for _,c in ipairs(listeners) do c:Disconnect() end;EquipSlots.watched[object]=nil end
+        end
+        EquipSlots.records,EquipSlots.ordered,EquipSlots.knownSlots=records,ordered,known
+        if EquipSlots.onChanged then EquipSlots.onChanged() end
+    end
+    local function combatFindEquipTool(character, backpack, slot)
+        EquipSlots.refresh(false)
+        local record=EquipSlots.records[slot]
+        local function owned(tool) return tool and (tool.Parent==character or tool.Parent==backpack) end
+        if record and owned(record.tool) then return record.tool end
+        local remembered
+        for _,container in ipairs({character,backpack}) do
+            if container then for _,tool in ipairs(container:GetChildren()) do
+                if tool:IsA("Tool") then
+                    local toolSlot=combatToolSlot(tool)
+                    if toolSlot==slot then return tool end
+                    if not toolSlot and CombatCfg.SelectedToolName and tool.Name==CombatCfg.SelectedToolName
+                        and ((not record and not EquipSlots.knownSlots[slot]) or (record and record.name==CombatCfg.SelectedSlotLabel)) then
+                        remembered=remembered or tool
+                    end
+                end
+            end end
+        end
         return remembered
+    end
+    local function combatWatchEquipScope(scope,bucket)
+        if not scope then return end
+        bucket=bucket or EquipSlots.scopeConnections
+        for _,signal in ipairs({scope.DescendantAdded,scope.DescendantRemoving}) do
+            local ok,c=pcall(function() return signal:Connect(function(object)
+                local hotbar=EquipSlots.hotbar(object)
+                if hotbar then EquipSlots.hotbarRoots[hotbar]=true end
+                if object:IsA("Tool") or object:IsA("Backpack") or hotbar then EquipSlots.markDirty() end
+            end) end)
+            if ok then bucket[#bucket+1]=c end
+        end
+    end
+    combatWatchEquipScope(LocalPlayer)
+    combatWatchEquipScope(LocalPlayer.Character,EquipSlots.characterConnections)
+    pcall(function() combatWatchEquipScope(CoreGui) end)
+    connect(LocalPlayer.CharacterAdded,function(character)
+        for _,c in ipairs(EquipSlots.characterConnections) do c:Disconnect() end
+        EquipSlots.characterConnections={}
+        combatWatchEquipScope(character,EquipSlots.characterConnections);EquipSlots.markDirty()
+    end)
+    Stoppers.EquipSlots=function()
+        if EquipSlots.timer then pcall(task.cancel,EquipSlots.timer);EquipSlots.timer=nil end
+        for _,listeners in pairs(EquipSlots.watched) do for _,c in ipairs(listeners) do c:Disconnect() end end
+        for _,c in ipairs(EquipSlots.scopeConnections) do c:Disconnect() end
+        for _,c in ipairs(EquipSlots.characterConnections) do c:Disconnect() end
+        EquipSlots.watched,EquipSlots.scopeConnections={},{}
+        EquipSlots.characterConnections={}
+        EquipSlots.onChanged=nil
     end
 
     local function combatReleaseEquipInput()
@@ -2929,10 +3245,13 @@ runSection("Combat", function()
             end
             if target.Parent == character then
                 CombatCfg.SelectedToolName, CombatCfg.LastEquippedTool = target.Name, target
+                CombatCfg.SelectedSlotLabel = EquipSlots.records[slot] and EquipSlots.records[slot].name
                 return
             end
         end
         CombatCfg.LastEquippedTool = nil
+        if EquipSlots.knownSlots[slot] and not EquipSlots.records[slot] then return end
+        if not SLOT_KEYS[slot] then return end
         if not backpack or os.clock() < CombatCfg.NextSlotInputAt or UserInputService:GetFocusedTextBox() then return end
         local before = character:FindFirstChildOfClass("Tool")
         CombatCfg.NextSlotInputAt = os.clock() + 1
@@ -2949,6 +3268,7 @@ runSection("Combat", function()
             local actualSlot = combatToolSlot(equipped)
             if actualSlot == slot or (not actualSlot and (equipped ~= before or equipped.Name == CombatCfg.SelectedToolName)) then
                 CombatCfg.SelectedToolName, CombatCfg.LastEquippedTool = equipped.Name, equipped
+                CombatCfg.SelectedSlotLabel = EquipSlots.records[slot] and EquipSlots.records[slot].name
             end
         end
     end
@@ -2982,11 +3302,15 @@ runSection("Combat", function()
     local function combatSelectSlot(slot)
         combatStopEquipLoop()
         CombatCfg.LastEquippedTool, CombatCfg.SelectedToolName = nil, nil
-        if not SLOT_KEYS[slot] or CombatCfg.SelectedSlot == slot then
+        EquipSlots.refresh(false)
+        if (not SLOT_KEYS[slot] and not EquipSlots.records[slot]) or CombatCfg.SelectedSlot == slot then
             CombatCfg.SelectedSlot = nil
             return nil
         end
         CombatCfg.SelectedSlot = slot
+        local record=EquipSlots.records[slot]
+        CombatCfg.SelectedToolName = record and record.toolName
+        CombatCfg.SelectedSlotLabel = record and record.name
         CombatCfg.NextSlotInputAt, CombatCfg.NextEquipAt = 0, 0
         if CombatCfg.AutoEquipEnabled then combatStartEquipLoop(slot) end
         return slot
@@ -3306,10 +3630,10 @@ runSection("Combat", function()
         end
     end
 
-    local CombatEquipCard = createStyledCard(CombatPage, "CombatEquipCard", 110, 1)
+    local CombatEquipCard = createStyledCard(CombatPage, "CombatEquipCard", 64, 1)
     local CombatEquipTitle = Instance.new("TextLabel")
-    CombatEquipTitle.Size = UDim2.new(1, -110, 0, 24)
-    CombatEquipTitle.Position = UDim2.fromOffset(16, 9)
+    CombatEquipTitle.Size = UDim2.new(1, -110, 1, 0)
+    CombatEquipTitle.Position = UDim2.fromOffset(16, 0)
     CombatEquipTitle.BackgroundTransparency = 1
     CombatEquipTitle.Text = "Auto Equip"
     CombatEquipTitle.TextColor3 = Theme.Text
@@ -3321,7 +3645,7 @@ runSection("Combat", function()
     local CombatEquipToggle = Instance.new("TextButton")
     CombatEquipToggle.Name = "AutoEquipToggle"
     CombatEquipToggle.Size = UDim2.fromOffset(52, 28)
-    CombatEquipToggle.Position = UDim2.new(1, -68, 0, 7)
+    CombatEquipToggle.Position = UDim2.new(1, -68, 0.5, -14)
     CombatEquipToggle.BackgroundColor3 = Color3.new(1, 1, 1)
     CombatEquipToggle.BorderSizePixel = 0
     CombatEquipToggle.Text = ""
@@ -3351,45 +3675,107 @@ runSection("Combat", function()
     end
     connect(CombatEquipToggle.MouseButton1Click, function() setCombatEquipState(not combatEquipEnabled) end)
 
-    local CombatSlotsFrame = Instance.new("Frame")
-    CombatSlotsFrame.Name = "HotbarSlots"
-    CombatSlotsFrame.Size = UDim2.new(1, -32, 0, 40)
-    CombatSlotsFrame.Position = UDim2.fromOffset(16, 47)
-    CombatSlotsFrame.BackgroundTransparency = 1
-    CombatSlotsFrame.Parent = CombatEquipCard
-    local CombatSlotsLayout = Instance.new("UIListLayout")
-    CombatSlotsLayout.FillDirection = Enum.FillDirection.Horizontal
-    CombatSlotsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    CombatSlotsLayout.Padding = UDim.new(0, 5)
-    CombatSlotsLayout.Parent = CombatSlotsFrame
-    local combatSlotButtons = {}
-    for i, slotNumber in ipairs({1, 2, 3, 4, 5, 6, 7, 8, 9, 10}) do
-        local label = slotNumber == 10 and "0" or tostring(slotNumber)
-        local button = Instance.new("TextButton")
-        button.Name = "Slot" .. label
-        button.Size = UDim2.new(0, 27, 1, 0)
-        button.BackgroundColor3 = Theme.BgSecondary
-        button.BorderSizePixel = 0
-        button.Text = label
-        button.TextColor3 = Theme.TextDim
-        button.Font = Enum.Font.GothamBold
-        button.TextSize = 13
-        button.AutoButtonColor = false
-        button.LayoutOrder = i
-        button.Parent = CombatSlotsFrame
-        addCorner(button, 6)
-        combatSlotButtons[slotNumber] = button
-        connect(button.MouseButton1Click, function()
-            local chosen = combatSelectSlot(slotNumber)
-            for slot, slotButton in pairs(combatSlotButtons) do
-                local selected = chosen == slot
-                slotButton.BackgroundColor3 = selected and Theme.Accent1 or Theme.BgSecondary
-                slotButton.TextColor3 = selected and Color3.fromRGB(255, 255, 255) or Theme.TextDim
-            end
-        end)
+    local CombatSlotSelectionCard = createStyledCard(CombatPage, "CombatSlotSelectionCard", 58, 2)
+    CombatSlotSelectionCard.ClipsDescendants = true
+    local equipSelection=Instance.new("TextButton")
+    equipSelection.Name="AutoEquipSelection"
+    equipSelection.Size=UDim2.new(1,0,0,58)
+    equipSelection.Position=UDim2.fromOffset(0,0)
+    equipSelection.BackgroundColor3=Theme.BgSecondary
+    equipSelection.BorderSizePixel=0
+    equipSelection.Text="Select Slot"
+    equipSelection.TextColor3=Theme.Text
+    equipSelection.TextSize=14
+    equipSelection.Font=Enum.Font.GothamBold
+    equipSelection.TextXAlignment=Enum.TextXAlignment.Left
+    equipSelection.AutoButtonColor=false
+    equipSelection.ZIndex=4
+    equipSelection.Parent=CombatSlotSelectionCard
+    local equipPadding=Instance.new("UIPadding")
+    equipPadding.PaddingLeft=UDim.new(0,16)
+    equipPadding.PaddingRight=UDim.new(0,26)
+    equipPadding.Parent=equipSelection
+    addCorner(equipSelection,8)
+    local equipList=Instance.new("ScrollingFrame")
+    equipList.Name="AutoEquipDropdown"
+    equipList.Size=UDim2.new(1,-18,0,186)
+    equipList.Position=UDim2.fromOffset(9,58)
+    equipList.BackgroundColor3=Theme.BgSecondary
+    equipList.BorderSizePixel=0
+    equipList.ScrollBarThickness=3
+    equipList.ScrollBarImageColor3=Theme.Accent2
+    equipList.CanvasSize=UDim2.fromOffset(0,0)
+    equipList.AutomaticCanvasSize=Enum.AutomaticSize.Y
+    equipList.Visible=false
+    equipList.ZIndex=5
+    equipList.Parent=CombatSlotSelectionCard
+    addCorner(equipList,8)
+    local equipLayout=Instance.new("UIListLayout")
+    equipLayout.Padding=UDim.new(0,4)
+    equipLayout.SortOrder=Enum.SortOrder.LayoutOrder
+    equipLayout.Parent=equipList
+    local equipRows,equipRowConnections={},{}
+    local function renderEquipDropdown()
+        local current=EquipSlots.records[CombatCfg.SelectedSlot]
+        equipSelection.Text="Select Slot"
+        if not equipList.Visible then return end
+        for _,c in ipairs(equipRowConnections) do c:Disconnect() end
+        for _,row in ipairs(equipRows) do row:Destroy() end
+        equipRows,equipRowConnections={},{}
+        for i,record in ipairs(EquipSlots.ordered) do
+            local id=record.id
+            local row=Instance.new("TextButton")
+            row.Name="EquipItemOption"
+            row.Size=UDim2.new(1,-6,0,32)
+            row.LayoutOrder=i
+            row.BackgroundColor3=id==CombatCfg.SelectedSlot and Theme.Accent2 or Color3.fromRGB(24, 24, 29)
+            row.BorderSizePixel=0
+            row.Text=record.label
+            row.TextColor3=Theme.Text
+            row.Font=Enum.Font.GothamBold
+            row.TextSize=13
+            row.TextTruncate=Enum.TextTruncate.AtEnd
+            row.ZIndex=6
+            row.Parent=equipList
+            addCorner(row,6)
+            equipRows[#equipRows+1]=row
+            equipRowConnections[#equipRowConnections+1]=row.MouseButton1Click:Connect(function()
+                combatSelectSlot(id)
+                equipList.Visible=false
+                CombatSlotSelectionCard.Size=UDim2.new(1,0,0,58)
+                renderEquipDropdown()
+            end)
+        end
+        if #equipRows==0 then
+            local empty=Instance.new("TextLabel")
+            empty.Size=UDim2.new(1,-6,0,36)
+            empty.BackgroundTransparency=1
+            empty.Text="No items detected"
+            empty.TextColor3=Theme.TextDim
+            empty.Font=Enum.Font.Gotham
+            empty.TextSize=12
+            empty.ZIndex=6
+            empty.Parent=equipList
+            equipRows[#equipRows+1]=empty
+        end
+    end
+    EquipSlots.onChanged=renderEquipDropdown
+    addDropdownIndicator(equipSelection,equipList)
+    connect(equipSelection.MouseButton1Click,function()
+        equipList.Visible=not equipList.Visible
+        CombatSlotSelectionCard.Size=UDim2.new(1,0,0,equipList.Visible and 252 or 58)
+        EquipSlots.refresh(true)
+        renderEquipDropdown()
+    end)
+    EquipSlots.refresh(true)
+    local stopEquipSlots=Stoppers.EquipSlots
+    Stoppers.EquipSlots=function()
+        stopEquipSlots()
+        for _,c in ipairs(equipRowConnections) do c:Disconnect() end
+        equipRowConnections={}
     end
 
-    createCombatToggle(CombatPage, "CombatSkillToggleCard", "Auto Skills", 2, combatToggleAutoSkill)
+    createCombatToggle(CombatPage, "CombatSkillToggleCard", "Auto Skills", 3, combatToggleAutoSkill)
     -- RANDOM HUB | Shared-style multi-select skills dropdown (black cards, blue selection).
     local function createRandomHubSkillDropdown(card, titleText, keys, selected, onChanged, onResized)
         card.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -3432,6 +3818,7 @@ runSection("Combat", function()
         options.Active = true
         options.ZIndex = 5
         options.Parent = card
+        addDropdownIndicator(header,options)
         addCorner(options, 9)
         addStroke(options, Theme.Stroke, 1, 0.45)
     
@@ -3461,7 +3848,7 @@ runSection("Combat", function()
                 end
             end
             local suffix = #names > 0 and (": " .. table.concat(names, ", ")) or ""
-            header.Text = titleText .. (open and "    ▲" or "    ▼")
+            header.Text = titleText
         end
     
         for index, item in ipairs(keys) do
@@ -3502,12 +3889,12 @@ runSection("Combat", function()
         refresh()
         return refresh
     end
-    local CombatSkillSelectionCard = createStyledCard(CombatPage, "CombatSkillSelectionCard", 58, 3)
+    local CombatSkillSelectionCard = createStyledCard(CombatPage, "CombatSkillSelectionCard", 58, 4)
     local combatSkillNames = {}
     for _, data in ipairs(SKILL_KEYS) do combatSkillNames[#combatSkillNames+1] = data.Key end
     createRandomHubSkillDropdown(CombatSkillSelectionCard, "Select Skills", combatSkillNames, CombatCfg.SelectedSkills)
 
-    createCombatToggle(CombatPage, "CombatAttackToggleCard", "Auto Attack", 4, combatToggleAutoAttack)
+    createCombatToggle(CombatPage, "CombatAttackToggleCard", "Auto Attack", 5, combatToggleAutoAttack)
 end)
 
 runSection("Teleport", function()
@@ -3587,6 +3974,7 @@ runSection("Teleport", function()
     popup.ZIndex = 15
     popup.Visible = false
     popup.Parent = container
+    addDropdownIndicator(selection,popup,true)
     addCorner(popup, 9)
     addStroke(popup, Color3.fromRGB(66, 67, 79), 1, 0.1)
 
@@ -3639,7 +4027,7 @@ runSection("Teleport", function()
             choice.Name = "Island_" .. tostring(order)
             choice.Size = UDim2.new(1, -6, 0, 33)
             choice.LayoutOrder = order
-            choice.BackgroundColor3 = palette.input
+            choice.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             choice.BorderSizePixel = 0
             choice.Text = info.name
             choice.TextColor3 = palette.muted
@@ -3663,7 +4051,7 @@ runSection("Teleport", function()
             empty.Name = "IslandEmpty"
             empty.LayoutOrder = 1
             empty.Size = UDim2.new(1, -6, 0, 33)
-            empty.BackgroundColor3 = palette.input
+            empty.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             empty.BorderSizePixel = 0
             empty.Text = "No islands found"
             empty.TextColor3 = palette.muted
@@ -6985,7 +7373,7 @@ runSection("QuestAcceptance", function()
         QuestRuntime.RepeatArmAt = os.clock() + 3
         -- Quem ja escolheu um mob nao precisa seleciona-lo novamente em cada quest.
         QuestRuntime.WaitForFarmSelection = not QuestRuntime.HasFarmSelection
-        print("[Random Hub | Auto Quest] Missao ativa (" .. tostring(source) .. "). Parado; selecione o mob em Auto Farm.")
+        print("[Random Hub | Auto Get Quest] Quest accepted.")
     end
 
     function A.talkSettings(entry)
@@ -7138,7 +7526,7 @@ runSection("QuestAcceptance", function()
 
     function A.tick(now)
         if not A.enabled or destroyed then return end
-        if World.characterUnavailable or not World.ready or not Motion.character() then
+        if World.characterUnavailable or (not A.manualCatalog and not World.ready) or not Motion.character() then
             A.cancelDispatch(); A.releaseMovement(); A.schedule(0.5); return
         end
         if A.catalogDirty and now >= (A.nextCatalogAt or 0) then A.refreshCatalog()
@@ -7437,36 +7825,162 @@ runSection("QuestAcceptance", function()
 end)
 
 
+runSection("QuestNPCs", function()
+    local A = AcceptQuest
+    -- Coordinates transcribed from the 27 screenshots supplied by the user.
+    A.manualCatalog = {
+        {"Zack",0,440.9,11.3,-991.5},
+        {"Mari",10,153.1,11.3,-948.9},
+        {"Roupão",20,13.7,10.9,-1142.1},
+        {"Bob",30,-4.6,10.9,-992.0},
+        {"Relouneibor",40,235.6,10.9,-1442.3},
+        {"Adventurer",45,-905.7,12.2,104.0},
+        {"Melancio",60,-1244.4,12.4,32.6},
+        {"Adventurer Girl",70,-1158.0,12.2,-14.8},
+        {"Luna",75,785.6,6.1,2682.9},
+        {"Gunks",85,535.6,6.0,2901.9},
+        {"Kairon",90,379.2,6.2,3183.6},
+        {"Lazy Guy",100,660.7,5.9,2687.5},
+        {"Shiro",105,379.2,6.2,3266.6},
+        {"Jaquin",110,618.9,6.7,2913.4},
+        {"Yoko",115,1309.8,5.8,3566.8},
+        {"Kaito",120,240.7,5.8,3515.5},
+        {"Naori",130,1103.1,5.9,2762.2},
+        {"Noob Player",135,3697.9,33.6,2578.0},
+        {"Romantic Player",145,3575.9,33.9,2607.0},
+        {"Master Player",150,3335.0,33.6,2777.0},
+        {"Miner Player",160,3813.8,33.9,2924.0},
+        {"Novice Sorcerer",165,4154.9,9.9,44.7},
+        {"Ryoto",180,4239.4,12.5,116.1},
+        {"Yaz",190,4504.3,9.9,-14.4},
+        {"Nando",205,4683.5,9.9,-79.7},
+        {"Chokita",215,4509.2,12.0,337.5},
+        {"Lito",225,4603.3,9.9,205.7},
+    }
+
+    function A.npcKey(value)
+        local text=tostring(value or ""):lower():gsub("<[^>]*>","")
+        for accent,plain in pairs({["á"]="a",["à"]="a",["ã"]="a",["â"]="a",["é"]="e",["ê"]="e",
+            ["í"]="i",["ó"]="o",["ô"]="o",["õ"]="o",["ú"]="u",["ç"]="c"}) do text=text:gsub(accent,plain) end
+        return (text:gsub("[^%w]",""))
+    end
+    function A.bindManual(entry)
+        if entry.model and entry.model.Parent and entry.model:IsDescendantOf(workspace) then return entry end
+        entry.model = nil
+        local now = os.clock()
+        if now < (entry.nextBindAt or 0) then return entry end
+        entry.nextBindAt = now + 0.6
+        local seen, winner, best = {}, nil, 45*45
+        local function consider(model,namedMarker)
+            if not model or seen[model] or not model:IsA("Model") or model == LocalPlayer.Character
+                or Players:GetPlayerFromCharacter(model) then return end
+            seen[model] = true
+            if not model.Parent or not model:IsDescendantOf(workspace)
+                or model:FindFirstAncestorWhichIsA("Camera") or model:FindFirstAncestorWhichIsA("WorldModel") then return end
+            local root = A.entityRoot(model)
+            if not root then return end
+            local delta = root.Position - entry.position
+            local distance = delta:Dot(delta)
+            if distance > best then return end
+            local humanoid = getMobHumanoid(model)
+            local matches = namedMarker or A.npcKey(model.Name) == A.npcKey(entry.name)
+                or (humanoid and A.npcKey(humanoid.DisplayName) == A.npcKey(entry.name))
+            local generic = A.npcKey(model.Name) == "npc" or A.npcKey(model.Name) == "rig" or A.npcKey(model.Name) == "model"
+            if not matches and not generic and not (humanoid and distance<=20*20) then return end
+            local hasQuestMarker = false
+            local prompts, clicks, labels = {}, {}, {}
+            for _, child in ipairs(model:GetDescendants()) do
+                if child:IsA("ProximityPrompt") then prompts[#prompts+1] = child
+                elseif child:IsA("ClickDetector") then clicks[#clicks+1] = child
+                elseif (child:IsA("TextLabel") or child:IsA("TextButton")) and A.markerBoard(child) then
+                    labels[#labels+1] = child
+                    matches = matches or A.npcKey(child.Text) == A.npcKey(entry.name)
+                    hasQuestMarker = hasQuestMarker or A.questionCue(child.Text) or A.questMarker(child.Text)
+                end
+            end
+            -- Generic "NPC" rigs are allowed only at this exact saved NPC point
+            -- and with a real quest marker. A nearby enemy cannot become the giver.
+            if not matches and not (generic and hasQuestMarker and distance <= 12*12) then return end
+            winner, best = {model=model,prompts=prompts,clicks=clicks,markers=labels}, distance
+        end
+        local ok, parts = pcall(function() return workspace:GetPartBoundsInRadius(entry.position,45) end)
+        if ok then for _, part in ipairs(parts) do consider(A.npcFor(part)) end end
+        for humanoid in pairs(World.humanoids) do consider(humanoid.Parent) end
+        for text in pairs(World.texts) do
+            if text.Parent and A.markerBoard(text) and A.npcKey(text.Text) == A.npcKey(entry.name) then
+                -- A verified nameplate also identifies NPCs with generic model IDs.
+                local model=A.npcFor(text)
+                if model then seen[model]=nil end
+                consider(model,true)
+            end
+        end
+        if winner then
+            entry.model, entry.modelName = winner.model, winner.model.Name
+            entry.prompts, entry.clicks, entry.markers = winner.prompts, winner.clicks, winner.markers
+        end
+        return entry
+    end
+    function A.refreshCatalog()
+        local entries = {}
+        for _, row in ipairs(A.manualCatalog) do
+            local key = "manual:" .. row[2] .. ":" .. A.npcKey(row[1])
+            local entry = A.entries[key] or {key=key,manual=true,name=row[1],minLevel=row[2],
+                position=Vector3.new(row[3],row[4],row[5]),prompts={},clicks={},markers={},guiButtons={}}
+            entries[key] = entry
+            if key == A.selectedKey then A.bindManual(entry) end
+        end
+        A.entries, A.catalogDirty, A.nextCatalogAt = entries, false, os.clock()+1
+        if A.refreshDropdown then A.refreshDropdown() end
+    end
+    function A.startDiscovery()
+        -- This catalog is manual. Do not stream remote islands to populate it.
+        A.catalogDirty = true
+    end
+    function A.selected()
+        local entry = A.selectedKey and A.entries[A.selectedKey]
+        return entry and A.bindManual(entry) or nil
+    end
+    local nearNpc, moveNear = A.nearNpc, A.moveNear
+    function A.nearNpc(entry)
+        return entry and entry.model and nearNpc(entry) or false
+    end
+    function A.moveNear(entry, now)
+        A.bindManual(entry)
+        if entry.model then return moveNear(entry,now) end
+        if not Motion.allowed("Quest") then return false end
+        A.moving, QuestRuntime.AcceptanceMoving = true, true
+        if not A.approachStarted then
+            local _, root = Motion.character()
+            A.approachStarted, A.approachDistance = now, root and (root.Position-entry.position).Magnitude or 0
+        end
+        -- Reuse the existing Quest/giver teleport, streaming, Safe Farm and
+        -- cancellation guards while the NPC is still outside the loaded region.
+        Motion.request("Quest",nil,0,"giver",entry.position+Vector3.new(0,2,0))
+        return false
+    end
+
+    A.refreshCatalog()
+end)
+
 runSection("QuestAcceptanceUI", function()
     local A = AcceptQuest
     local page = Pages.AutoQuest
-    createCombatToggle(page, "AutoQuestAcceptToggleCard", "Auto Quest", 2, A.setEnabled)
-    local card = createStyledCard(page, "SelectQuestNPCCard", 82, 3)
-    local title = Instance.new("TextLabel")
-    title.Name = "SelectQuestNPCTitle"
-    title.Size = UDim2.new(1, -24, 0, 22)
-    title.Position = UDim2.fromOffset(12, 7)
-    title.BackgroundTransparency = 1
-    title.Text = "Select Quest NPC"
-    title.TextColor3 = Theme.Text
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 14
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Parent = card
+    createCombatToggle(page, "AutoQuestAcceptToggleCard", "Auto Get Quest", 2, A.setEnabled)
+    local card = createStyledCard(page, "SelectQuestNPCCard", 58, 3)
     local selection = Instance.new("TextButton")
     selection.Name = "QuestNPCSelection"
     selection.Size = UDim2.new(1, -24, 0, 36)
     selection.Position = UDim2.fromOffset(12, 34)
     selection.BackgroundColor3 = Theme.BgSecondary
     selection.BorderSizePixel = 0
-    selection.Text = "Select Quest NPC     ▾"
+    selection.Text = "Select Quest NPC"
     selection.TextColor3 = Theme.Text
     selection.Font = Enum.Font.Gotham
     selection.TextSize = 13
     selection.AutoButtonColor = false
     selection.Parent = card
     addCorner(selection, 8)
-    addStroke(selection, Theme.Stroke, 1, 0.4)
+    -- The selector uses the card outline, like Select Skills.
     local list = Instance.new("ScrollingFrame")
     list.Name = "QuestNPCOptions"
     list.Position = UDim2.fromOffset(12, 78)
@@ -7480,6 +7994,7 @@ runSection("QuestAcceptanceUI", function()
     list.AutomaticCanvasSize = Enum.AutomaticSize.Y
     list.ScrollingDirection = Enum.ScrollingDirection.Y
     list.Parent = card
+    addDropdownIndicator(selection,list)
     addCorner(list, 8)
     local layout = Instance.new("UIListLayout")
     layout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -7492,7 +8007,7 @@ runSection("QuestAcceptanceUI", function()
     local rows, rowConnections = {}, {}
     local function setOpen(state)
         list.Visible = state
-        card.Size = UDim2.new(1, 0, 0, state and 254 or 82)
+        card.Size = UDim2.new(1, 0, 0, state and 230 or 58)
     end
     function A.refreshDropdown()
         for _, connection in ipairs(rowConnections) do connection:Disconnect() end
@@ -7502,6 +8017,7 @@ runSection("QuestAcceptanceUI", function()
         local entries = {}
         for _, entry in pairs(A.entries) do entries[#entries + 1] = entry end
         table.sort(entries, function(a, b)
+            if (a.minLevel or 0) ~= (b.minLevel or 0) then return (a.minLevel or 0) < (b.minLevel or 0) end
             if a.name ~= b.name then return a.name < b.name end
             return a.key < b.key
         end)
@@ -7512,7 +8028,7 @@ runSection("QuestAcceptanceUI", function()
             row.Name = "QuestNPCOption"
             row.Size = UDim2.new(1, -4, 0, 32)
             row.LayoutOrder = index
-            row.BackgroundColor3 = entry.key == A.selectedKey and Theme.Accent2 or Theme.Card
+            row.BackgroundColor3 = entry.key == A.selectedKey and Theme.Accent2 or Color3.fromRGB(24, 24, 29)
             row.BorderSizePixel = 0
             row.Text = A.displayName(entry)
             if names[entry.name] > 1 then
@@ -7527,7 +8043,7 @@ runSection("QuestAcceptanceUI", function()
             rows[#rows + 1] = row
             rowConnections[#rowConnections + 1] = row.MouseButton1Click:Connect(function()
                 A.select(entry.key)
-                selection.Text = A.displayName(entry) .. "     ▾"
+                selection.Text = "Select Quest NPC"
                 setOpen(false)
                 A.refreshDropdown()
             end)
@@ -7546,7 +8062,7 @@ runSection("QuestAcceptanceUI", function()
         end
         local selected = A.selected()
         local known = selected or (A.selectedKey and A.entries[A.selectedKey])
-        selection.Text = known and (A.displayName(known) .. "     ▾") or "Select Quest NPC     ▾"
+        selection.Text = "Select Quest NPC"
     end
     function A.requestCatalog()
         if not A.catalogActive() then return end
@@ -7985,12 +8501,19 @@ runSection("FruitShop", function()
 end)
 
 
--- AUTO SPIN FRUIT | eventos virtuais, mesma estrategia de Auto Buy Fruit.
--- Nao controla camera, mouse ou teleporte. So executa callbacks conhecidos.
+-- AUTO SPIN FRUIT | NPC Luzefe (Fruit Gacha), conversa e confirma o giro.
+-- Utiliza o mesmo sistema Motion e os callbacks da GUI ja usados no Anime Piece.
 local FruitSpin = {
     enabled = false, generation = 0, worker = nil, dispatch = nil,
     pending = nil, nextAction = 0, failures = 0, lastWarn = -math.huge,
     price = 10000, openAttempts = 0, ownsInput = false,
+    -- Coordenadas mostradas pelo ESP do jogador para Luzefe (Fruit Gacha).
+    npcPosition = Vector3.new(250.3, 12.9, -1204.9),
+    npcRange = 9, nextNpcWarn = 0,
+    -- Keep the Fruit tab status visible while moving to the NPC.
+    statusText = "Disabled", statusKind = "off", statusLabel = nil,
+    countersLabel = nil, totalAttempts = 0, confirmedCount = 0,
+    unconfirmedCount = 0, cooldownReason = nil,
 }
 
 runSection("FruitSpin", function()
@@ -7998,6 +8521,37 @@ runSection("FruitSpin", function()
     local A = AcceptQuest
     local B = FruitShop
     local PromptService = getServiceSafe("ProximityPromptService")
+
+    local spinStatusColors = {
+        off = Theme.TextDim,
+        waiting = Theme.TextDim,
+        active = Theme.Accent2,
+        success = Color3.fromRGB(60, 220, 130),
+        warning = Color3.fromRGB(255, 180, 70),
+        error = Theme.Danger,
+    }
+
+    function S.refreshStatus()
+        if S.statusLabel and S.statusLabel.Parent then
+            S.statusLabel.Text = "Status: " .. tostring(S.statusText)
+            S.statusLabel.TextColor3 = spinStatusColors[S.statusKind] or Theme.Text
+        end
+    end
+
+    function S.refreshCounters()
+        if S.countersLabel and S.countersLabel.Parent then
+            S.countersLabel.Text = string.format(
+                "Attempts: %d  |  Confirmed: %d  |  Unconfirmed: %d",
+                S.totalAttempts, S.confirmedCount, S.unconfirmedCount)
+        end
+    end
+
+    function S.setStatus(message, kind)
+        message, kind = tostring(message or "Unknown"), kind or "waiting"
+        if S.statusText == message and S.statusKind == kind then return end
+        S.statusText, S.statusKind = message, kind
+        S.refreshStatus()
+    end
 
     function S.warn(message)
         if os.clock() - S.lastWarn > 8 then
@@ -8101,6 +8655,82 @@ runSection("FruitSpin", function()
         return nil
     end
 
+    -- Aproxima do Luzefe pelo sistema Motion existente. Quando ainda nao ha NPC
+    -- replicado (StreamingEnabled), vai ate a coordenada conhecida e procura la.
+    -- Manter o lease do Motion evita que o Auto Farm leve o jogador embora
+    -- durante a conversa ou enquanto aguardamos a confirmacao do giro.
+    function S.approachNpc(now)
+        local _, root = Motion.character()
+        if not root then
+            S.setStatus("Waiting for character", "waiting")
+            return false
+        end
+        local npc = S.findNpc()
+        local part = npc and (A.entityRoot(npc) or World.root(npc))
+        local position = part and part.Position or S.npcPosition
+        if typeof(position) ~= "Vector3" then
+            S.setStatus("Luzefe position unavailable", "warning")
+            return false
+        end
+        local distance = (root.Position - position).Magnitude
+        local near = npc and part and distance <= S.npcRange
+        local destination = position + Vector3.new(0, 2, 3)
+
+        if Motion.owner == "FruitSpin" or Motion.allowed("FruitSpin") then
+            -- Refresh the Motion lease while searching, travelling, and spinning.
+            Motion.request("FruitSpin", nil, 0, "point", destination)
+        elseif not near then
+            S.setStatus("Waiting for movement to be available", "waiting")
+            return false
+        end
+
+        if not near then
+            if not npc and distance <= 18 then
+                S.setStatus("At Fruit Gacha; waiting for Luzefe", "waiting")
+                if now >= S.nextNpcWarn then
+                    S.nextNpcWarn = now + 9
+                    S.warn("Cheguei ao Fruit Gacha, aguardando Luzefe aparecer no mapa.")
+                end
+            elseif not npc then
+                S.setStatus(string.format("Going to Fruit Gacha (%.0f studs)", distance), "active")
+            else
+                S.setStatus(string.format("Approaching Luzefe (%.0f studs)", distance), "active")
+            end
+            return false
+        end
+        S.setStatus("Near Luzefe; opening dialog", "active")
+        return true
+    end
+
+    -- Se o NPC usa um clique de personagem em vez de ProximityPrompt/ClickDetector,
+    -- reproduz o clique visivel apenas estando proximo dele. Nao toca em outros NPCs.
+    function S.clickNpc(npc)
+        local camera = workspace.CurrentCamera
+        local _, root = Motion.character()
+        local part = npc and (npc:FindFirstChild("Head", true) or A.entityRoot(npc) or World.root(npc))
+        if not camera or not root or not part or not part:IsA("BasePart")
+            or (root.Position - part.Position).Magnitude > S.npcRange + 3 then return false end
+        local screen, visible = camera:WorldToViewportPoint(part.Position)
+        if not visible or screen.Z <= 0 then
+            pcall(function() camera.CFrame = CFrame.lookAt(camera.CFrame.Position, part.Position) end)
+            task.wait(0.08)
+            screen, visible = camera:WorldToViewportPoint(part.Position)
+        end
+        if not visible or screen.Z <= 0 then return false end
+        local x, y = math.floor(screen.X), math.floor(screen.Y)
+        local viewport = camera.ViewportSize
+        if x < 2 or y < 2 or x >= viewport.X - 2 or y >= viewport.Y - 2 then return false end
+        if VirtualInputManager then
+            local ok = pcall(function()
+                VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 0)
+                task.wait(0.07)
+                VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 0)
+            end)
+            if ok then return true end
+        end
+        return false
+    end
+
     function S.release()
         if S.ownsInput then
             QuestRuntime.Interacting, QuestRuntime.FruitBuying = false, false
@@ -8131,6 +8761,7 @@ runSection("FruitSpin", function()
     -- Mesmo mecanismo do Auto Buy Fruit: emitir sinais dos objetos (callbacks da GUI / NPC).
     function S.openVirtual()
         if S.dialogButton() then return true end
+        S.setStatus("Trying to talk to Luzefe", "active")
         -- Primeiro tenta botoes de GUI existentes para abrir o Fruit Gacha.
         for item in pairs(World.gui) do
             if item.Parent and item:IsA("GuiButton") and not item:IsDescendantOf(ScreenGui)
@@ -8142,8 +8773,17 @@ runSection("FruitSpin", function()
             end
         end
         local npc = S.findNpc()
-        if not npc then S.warn("Fruit Gacha / Luzefe ainda nao foi replicado no cliente."); return false end
-        -- Nenhuma distancia e alterada aqui: funciona como o openStock() do Auto Buy.
+        if not npc then
+            S.setStatus("Luzefe not loaded yet", "warning")
+            S.warn("Fruit Gacha / Luzefe ainda nao foi replicado no cliente.")
+            return false
+        end
+        local _, playerRoot = Motion.character()
+        local npcRoot = A.entityRoot(npc) or World.root(npc)
+        if not playerRoot or not npcRoot or (playerRoot.Position - npcRoot.Position).Magnitude > S.npcRange then
+            return false
+        end
+        -- Interage somente quando proximo ao Luzefe, evitando ativar NPCs distantes.
         for _, item in ipairs(npc:GetDescendants()) do
             if item:IsA("ClickDetector") then
                 if A.emit(item.MouseClick, LocalPlayer) then return true end
@@ -8160,7 +8800,9 @@ runSection("FruitSpin", function()
                 if pcall(fireproximityprompt, item) then return true end
             end
         end
-        S.warn("Sem callback virtual do Fruit Gacha. O executor pode nao expor os eventos do NPC.")
+        if S.clickNpc(npc) then return true end
+        S.setStatus("Unable to open dialog; retrying", "warning")
+        S.warn("Nao foi possivel iniciar a conversa com Luzefe; verifique o tipo de interacao.")
         return false
     end
 
@@ -8177,49 +8819,94 @@ runSection("FruitSpin", function()
     end
 
     function S.tick(now)
-        if not S.enabled or destroyed or not World.ready or World.characterUnavailable then return end
+        if not S.enabled or destroyed then return end
+        if not World.ready then
+            S.setStatus("Waiting for game data", "waiting")
+            return
+        end
+        if World.characterUnavailable then
+            S.setStatus("Waiting for character", "waiting")
+            return
+        end
         if S.dispatch then return end
+        -- Wait until other interface interactions are finished.
+        if QuestRuntime.Interacting or QuestRuntime.FruitBuying or QuestRuntime.AcceptanceMoving
+            or QuestRuntime.ItemBusy or QuestRuntime.SkillBusy or A.dispatch or B.dispatch then
+            S.setStatus("Waiting for another interaction", "waiting")
+            return
+        end
+        -- Original nearby mode: go to Luzefe first and renew Motion while spinning.
+        if not S.approachNpc(now) then return end
         if S.pending then
             local pending = S.pending
             local balance, count = S.balance(), S.fruitCount()
-            local confirmed = (balance ~= nil and pending.balance ~= nil and balance < pending.balance)
-                or count > pending.count
-            if confirmed then
+            local balanceChanged = balance ~= nil and pending.balance ~= nil and balance < pending.balance
+            local fruitChanged = count > pending.count
+            if balanceChanged or fruitChanged then
                 S.pending, S.failures, S.openAttempts = nil, 0, 0
+                S.confirmedCount = S.confirmedCount + 1
+                S.refreshCounters()
                 S.nextAction = now + 3
+                S.cooldownReason = "Waiting for next spin"
+                S.setStatus(fruitChanged and "Spin confirmed: fruit received" or "Spin confirmed: balance changed", "success")
                 return
             end
-            if now < pending.deadline then return end
+            if now < pending.deadline then
+                S.setStatus(string.format("Awaiting spin result (%ds)", math.ceil(pending.deadline - now)), "active")
+                return
+            end
             S.pending = nil
             S.failures = S.failures + 1
+            S.unconfirmedCount = S.unconfirmedCount + 1
+            S.refreshCounters()
             S.nextAction = now + math.min(26, 6 + S.failures * 4)
+            S.cooldownReason = "Spin not confirmed; retrying"
+            S.setStatus("Spin not confirmed; retry scheduled", "warning")
             S.warn("Giro nao confirmado; nao vou acionar Sure! novamente sem intervalo.")
             return
         end
-        if now < S.nextAction then return end
+        if now < S.nextAction then
+            if S.cooldownReason then
+                S.setStatus(string.format("%s (%ds)", S.cooldownReason, math.ceil(S.nextAction - now)), "waiting")
+            end
+            return
+        end
         local balance = S.balance()
-        if balance ~= nil and balance < S.price then S.nextAction = now + 8; return end
-        if QuestRuntime.Interacting or QuestRuntime.FruitBuying or QuestRuntime.AcceptanceMoving
-            or QuestRuntime.ItemBusy or QuestRuntime.SkillBusy or A.dispatch or B.dispatch then
-            S.nextAction = now + 1
+        if balance ~= nil and balance < S.price then
+            S.nextAction = now + 8
+            S.cooldownReason = "Insufficient money"
+            S.setStatus(string.format("Insufficient money: %d / %d", balance, S.price), "warning")
             return
         end
         local sure = S.dialogButton()
         if sure then
             local previousBalance, previousCount = balance, S.fruitCount()
+            S.setStatus("Gacha dialog found; confirming spin", "active")
             if S.dispatchAction(function()
                 local sent = S.confirmVirtual(sure)
                 if sent then
+                    S.totalAttempts = S.totalAttempts + 1
+                    S.refreshCounters()
                     S.pending = {balance = previousBalance, count = previousCount, deadline = os.clock() + 11}
+                    S.setStatus("Spin requested; awaiting result", "active")
+                else
+                    S.setStatus("Unable to activate spin button", "warning")
                 end
                 return sent
-            end) then S.nextAction = now + 1.5 end
+            end) then
+                S.nextAction = now + 1.5
+                S.cooldownReason = nil
+            end
             return
         end
+        S.setStatus("Opening Luzefe conversation", "active")
         if S.dispatchAction(S.openVirtual) then
             S.openAttempts = S.openAttempts + 1
             S.nextAction = now + math.min(10, 2 + S.openAttempts)
-        else S.nextAction = now + 1 end
+            S.cooldownReason = "Waiting for Fruit Gacha dialog"
+        else
+            S.nextAction = now + 1
+        end
     end
 
     function S.setEnabled(value)
@@ -8228,13 +8915,27 @@ runSection("FruitSpin", function()
         if S.worker then pcall(task.cancel, S.worker); S.worker = nil end
         if S.dispatch then pcall(task.cancel, S.dispatch); S.dispatch = nil end
         S.release()
+        Motion.release("FruitSpin")
         S.pending, S.nextAction, S.failures, S.openAttempts = nil, 0, 0, 0
-        if not S.enabled then return end
+        S.nextNpcWarn, S.cooldownReason = 0, nil
+        if not S.enabled then
+            S.setStatus("Disabled", "off")
+            return
+        end
+        S.totalAttempts, S.confirmedCount, S.unconfirmedCount = 0, 0, 0
+        S.refreshCounters()
+        S.setStatus("Starting; locating Luzefe", "active")
         local token = S.generation
         S.worker = task.spawn(function()
             while S.enabled and S.generation == token and not destroyed do
                 local ok, err = pcall(S.tick, os.clock())
-                if not ok then S.warn(err); S.nextAction = os.clock() + 4; S.release() end
+                if not ok then
+                    S.warn(err)
+                    S.setStatus("Error: " .. tostring(err):sub(1, 66), "error")
+                    S.nextAction = os.clock() + 4
+                    S.cooldownReason = "Retrying after error"
+                    S.release()
+                end
                 task.wait(0.5)
             end
         end)
@@ -8245,26 +8946,17 @@ end)
 runSection("FruitShopUI", function()
     local B = FruitShop
     local page = Pages.Fruit
-    createCombatToggle(page, "AutoBuyFruitToggleCard", "Auto Buy Fruit", 1, B.setEnabled)
-    local card = createStyledCard(page, "SelectBuyFruitCard", 82, 2)
-    local title = Instance.new("TextLabel")
-    title.Name = "SelectBuyFruitTitle"
-    title.Size = UDim2.new(1, -24, 0, 22)
-    title.Position = UDim2.fromOffset(12, 7)
-    title.BackgroundTransparency = 1
-    title.Text = "Select Fruits to Buy"
-    title.TextColor3 = Theme.Text
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 14
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Parent = card
+    createCombatToggle(page, "AutoSpinFruitToggleCard", "Auto Spin Fruit", 1, FruitSpin.setEnabled)
+
+    createCombatToggle(page, "AutoBuyFruitToggleCard", "Auto Buy Fruit", 3, B.setEnabled)
+    local card = createStyledCard(page, "SelectBuyFruitCard", 58, 4)
     local selection = Instance.new("TextButton")
     selection.Name = "FruitBuySelection"
     selection.Size = UDim2.new(1, -24, 0, 36)
     selection.Position = UDim2.fromOffset(12, 34)
     selection.BackgroundColor3 = Theme.BgSecondary
     selection.BorderSizePixel = 0
-    selection.Text = "Select Fruits to Buy     ▾"
+    selection.Text = "Select Fruits to Buy"
     selection.TextColor3 = Theme.Text
     selection.Font = Enum.Font.Gotham
     selection.TextSize = 13
@@ -8272,7 +8964,7 @@ runSection("FruitShopUI", function()
     selection.AutoButtonColor = false
     selection.Parent = card
     addCorner(selection, 8)
-    addStroke(selection, Theme.Stroke, 1, 0.4)
+    -- The selector uses the card outline, like Select Skills.
     local list = Instance.new("ScrollingFrame")
     list.Name = "FruitBuyOptions"
     list.Position = UDim2.fromOffset(12, 78)
@@ -8286,6 +8978,7 @@ runSection("FruitShopUI", function()
     list.AutomaticCanvasSize = Enum.AutomaticSize.Y
     list.ScrollingDirection = Enum.ScrollingDirection.Y
     list.Parent = card
+    addDropdownIndicator(selection,list)
     addCorner(list, 8)
     local layout = Instance.new("UIListLayout")
     layout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -8302,17 +8995,17 @@ runSection("FruitShopUI", function()
             local selected = B.selected[name] == true
             local row = rows[name]
             row.Text = (selected and "✓  " or "    ") .. name
-            row.BackgroundColor3 = selected and Theme.Accent2 or Theme.Card
+            row.BackgroundColor3 = selected and Theme.Accent2 or Color3.fromRGB(24, 24, 29)
             if selected then names[#names + 1] = name end
         end
-        selection.Text = (#names > 0 and table.concat(names, ", ") or "Select Fruits to Buy") .. "     ▾"
+        selection.Text = "Select Fruits to Buy"
     end
     for index, name in ipairs(World.fruitCatalog) do
         local row = Instance.new("TextButton")
         row.Name = "FruitBuy_" .. name
         row.Size = UDim2.new(1, -4, 0, 32)
         row.LayoutOrder = index
-        row.BackgroundColor3 = Theme.Card
+        row.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
         row.BorderSizePixel = 0
         row.Text = "    " .. name
         row.TextXAlignment = Enum.TextXAlignment.Left
@@ -8329,8 +9022,110 @@ runSection("FruitShopUI", function()
     end
     connect(selection.MouseButton1Click, function()
         list.Visible = not list.Visible
-        card.Size = UDim2.new(1, 0, 0, list.Visible and 254 or 82)
+        card.Size = UDim2.new(1, 0, 0, list.Visible and 230 or 58)
     end)
+
+    -- Read-only Fruit Stock monitor. Reuses the shop parser already present
+    -- for Auto Buy, but never purchases, teleports, or changes the shop GUI.
+    -- The game must have replicated the Fruit Stock menu before stock is known.
+    local stockCard = createStyledCard(page, "FruitStockAvailableCard", 112, 5)
+    local stockTitle = Instance.new("TextLabel")
+    stockTitle.Name = "FruitStockTitle"
+    stockTitle.Size = UDim2.new(1, -24, 0, 24)
+    stockTitle.Position = UDim2.fromOffset(12, 10)
+    stockTitle.BackgroundTransparency = 1
+    stockTitle.Text = "Fruits in Stock"
+    stockTitle.TextColor3 = Theme.Text
+    stockTitle.Font = Enum.Font.GothamBold
+    stockTitle.TextSize = 14
+    stockTitle.TextXAlignment = Enum.TextXAlignment.Left
+    stockTitle.Parent = stockCard
+
+    local stockInfo = Instance.new("TextLabel")
+    stockInfo.Name = "FruitStockList"
+    stockInfo.Size = UDim2.new(1, -24, 0, 62)
+    stockInfo.Position = UDim2.fromOffset(12, 40)
+    stockInfo.BackgroundTransparency = 1
+    stockInfo.Text = "Open the Fruit Stock shop to detect available fruits."
+    stockInfo.TextColor3 = Theme.TextDim
+    stockInfo.Font = Enum.Font.Gotham
+    stockInfo.TextSize = 12
+    stockInfo.TextWrapped = true
+    stockInfo.TextXAlignment = Enum.TextXAlignment.Left
+    stockInfo.TextYAlignment = Enum.TextYAlignment.Top
+    stockInfo.Parent = stockCard
+
+    local stockRunning = true
+    local lastKnownStock = nil
+    local function formattedPrice(value)
+        if type(value) ~= "number" then return "" end
+        local num = tostring(math.floor(value + 0.5))
+        local grouped = num:reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+        return "  ($" .. grouped .. ")"
+    end
+
+    local function updateStockInfo()
+        if destroyed or not stockRunning or not stockInfo.Parent then return end
+        -- Scan independently from the Auto Buy toggle. No GUI clicks involved.
+        local ok = pcall(B.scan)
+        if not ok then
+            stockInfo.Text = "Could not read Fruit Stock yet."
+            stockInfo.TextColor3 = Theme.TextDim
+            stockCard.Size = UDim2.new(1, 0, 0, 106)
+            return
+        end
+        local available = {}
+        local detectedRows = 0
+        for _, name in ipairs(World.fruitCatalog) do
+            local row = B.rows[name]
+            if row then
+                detectedRows = detectedRows + 1
+                if row.inStock then
+                    available[#available + 1] = name .. formattedPrice(row.price)
+                end
+            end
+        end
+        local message, tint, lineCount
+        if detectedRows > 0 then
+            if #available > 0 then
+                message = table.concat(available, "\n")
+                tint = Color3.fromRGB(100, 220, 155)
+                lastKnownStock = message
+                lineCount = #available
+            else
+                message = "No fruits are available in the currently loaded stock."
+                tint = Theme.TextDim
+                lastKnownStock = nil
+                lineCount = 2
+            end
+        elseif lastKnownStock then
+            message = "Last detected (open shop to refresh):\n" .. lastKnownStock
+            tint = Theme.TextDim
+            lineCount = 1 + select(2, lastKnownStock:gsub("\n", "")) + 1
+        else
+            message = "Open the Fruit Stock shop to detect available fruits."
+            tint = Theme.TextDim
+            lineCount = 2
+        end
+        stockInfo.Text = message
+        stockInfo.TextColor3 = tint
+        local height = math.max(48, math.min(290, lineCount * 20 + 6))
+        stockInfo.Size = UDim2.new(1, -24, 0, height)
+        stockCard.Size = UDim2.new(1, 0, 0, 48 + height + 10)
+    end
+
+    local stockWorker = task.spawn(function()
+        -- Delay until the world's GUI index is populated.
+        task.wait(2)
+        while stockRunning and not destroyed do
+            updateStockInfo()
+            task.wait(4)
+        end
+    end)
+    Stoppers.FruitStockUI = function()
+        stockRunning = false
+        if stockWorker then pcall(task.cancel, stockWorker); stockWorker = nil end
+    end
 end)
 
 
@@ -9106,14 +9901,7 @@ runSection("AutoFarm", function()
 
     local function updateFarmSelectionText()
         if not FarmSelectionButton or not FarmSelectionButton.Parent then return end
-        if #selectedFarmMobNames == 0 then
-            FarmSelectionButton.Text = "Select Mob"
-        elseif #selectedFarmMobNames == 1 then
-            local entry=Catalog.get(selectedFarmMobNames[1])
-            FarmSelectionButton.Text = (entry and entry.island.name .. " · " or "") .. farmSelectorDisplayName(selectedFarmMobNames[1])
-        else
-            FarmSelectionButton.Text = tostring(#selectedFarmMobNames) .. " Mobs Selected"
-        end
+        FarmSelectionButton.Text = "Select Mob"
     end
 
     local function updateFarmMobRowStyles()
@@ -9121,7 +9909,7 @@ runSection("AutoFarm", function()
             if row and row.Parent then
                 local selectedIndex = getSelectedFarmMobIndex(name)
                 local selected = selectedIndex ~= nil
-                row.BackgroundColor3 = selected and Theme.Accent2 or farmPalette.input
+                row.BackgroundColor3 = selected and Theme.Accent2 or Color3.fromRGB(24, 24, 29)
                 row.TextColor3 = selected and farmPalette.text or farmPalette.muted
                 row.Text = selected and ("✓  " .. tostring(selectedIndex) .. ". " .. farmSelectorDisplayName(name)) or farmSelectorDisplayName(name)
             end
@@ -9146,7 +9934,7 @@ runSection("AutoFarm", function()
             local empty = Instance.new("TextLabel")
             empty.Name = "EmptyMessage"
             empty.Size = UDim2.new(1, -6, 0, 33)
-            empty.BackgroundColor3 = farmPalette.input
+            empty.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             empty.BorderSizePixel = 0
             empty.Text = "No targets found"
             empty.TextColor3 = farmPalette.muted
@@ -9187,7 +9975,7 @@ runSection("AutoFarm", function()
             local row = Instance.new("TextButton")
             row.Name = "MobTarget_" .. tostring(index)
             row.Size = UDim2.new(1, -6, 0, 33)
-            row.BackgroundColor3 = selected and Theme.Accent2 or farmPalette.input
+            row.BackgroundColor3 = selected and Theme.Accent2 or Color3.fromRGB(24, 24, 29)
             row.BorderSizePixel = 0
             row.AutoButtonColor = true
             row.Text = selected and ("✓  " .. tostring(selectedIndex) .. ". " .. farmSelectorDisplayName(name)) or farmSelectorDisplayName(name)
@@ -9265,21 +10053,10 @@ runSection("AutoFarm", function()
     end
 
     -- TP Island-style selector; only the labels and target-selection action differ.
-    local FarmTargetCard = createStyledCard(AutoFarmPage, "FarmTargetSelectorCard", 96, 4)
+    local FarmTargetCard = createStyledCard(AutoFarmPage, "FarmTargetSelectorCard", 58, 4)
     -- Match the Auto Farm / Auto World Boss toggles' gray background and gradient.
     FarmTargetCard.BackgroundColor3 = AutoFarmCard.BackgroundColor3
     FarmTargetCard.ZIndex = 4
-    local FarmTargetTitle = Instance.new("TextLabel")
-    FarmTargetTitle.Name = "FarmTargetTitle"
-    FarmTargetTitle.Size = UDim2.new(1, -20, 0, 25)
-    FarmTargetTitle.Position = UDim2.fromOffset(10, 8)
-    FarmTargetTitle.BackgroundTransparency = 1
-    FarmTargetTitle.Text = "Select Mob"
-    FarmTargetTitle.TextColor3 = farmPalette.text
-    FarmTargetTitle.TextSize = 18
-    FarmTargetTitle.Font = Enum.Font.GothamBold
-    FarmTargetTitle.TextXAlignment = Enum.TextXAlignment.Left
-    FarmTargetTitle.Parent = FarmTargetCard
 
     FarmSelectionButton = Instance.new("TextButton")
     FarmSelectionButton.Name = "SelectTarget"
@@ -9306,7 +10083,7 @@ runSection("AutoFarm", function()
     ClearTargetButton.Name = "ClearTarget"
     ClearTargetButton.Size = UDim2.new(1, -12, 0, 32)
     ClearTargetButton.Position = UDim2.fromOffset(6, 6)
-    ClearTargetButton.BackgroundColor3 = farmPalette.input
+    ClearTargetButton.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
     ClearTargetButton.BorderSizePixel = 0
     ClearTargetButton.AutoButtonColor = true
     ClearTargetButton.Font = Enum.Font.Gotham
@@ -9337,6 +10114,7 @@ runSection("AutoFarm", function()
     FarmTargetDropdown.ZIndex = 15
     FarmTargetDropdown.Visible = false
     FarmTargetDropdown.Parent = FarmTargetCard
+    addDropdownIndicator(FarmSelectionButton,FarmTargetDropdown)
     addCorner(FarmTargetDropdown, 9)
     addStroke(FarmTargetDropdown, Color3.fromRGB(66, 67, 79), 1, 0.1)
     -- Keep Clear Selection in the dropdown so the selector card matches the boss selectors.
@@ -9605,20 +10383,9 @@ runSection("AutoFarm", function()
         MiniKnob.Parent = MiniToggle
         addCorner(MiniKnob, 11)
 
-        local MiniCard = createStyledCard(AutoFarmPage, "MiniBossSelectorCard", 96, 6)
+        local MiniCard = createStyledCard(AutoFarmPage, "MiniBossSelectorCard", 58, 6)
         MiniCard.BackgroundColor3 = MiniToggleCard.BackgroundColor3
         MiniCard.ZIndex = 3
-        local MiniSelectTitle = Instance.new("TextLabel")
-        MiniSelectTitle.Name = "MiniBossSectionTitle"
-        MiniSelectTitle.Size = UDim2.new(1, -20, 0, 25)
-        MiniSelectTitle.Position = UDim2.fromOffset(10, 8)
-        MiniSelectTitle.BackgroundTransparency = 1
-        MiniSelectTitle.Text = "Select Mini Boss"
-        MiniSelectTitle.TextColor3 = farmPalette.text
-        MiniSelectTitle.Font = Enum.Font.GothamBold
-        MiniSelectTitle.TextSize = 18
-        MiniSelectTitle.TextXAlignment = Enum.TextXAlignment.Left
-        MiniSelectTitle.Parent = MiniCard
 
         local MiniSelectButton = Instance.new("TextButton")
         MiniSelectButton.Name = "SelectMiniBoss"
@@ -9651,9 +10418,10 @@ runSection("AutoFarm", function()
         MiniBossDropdown.ZIndex = 15
         MiniBossDropdown.Visible = false
         MiniBossDropdown.Parent = MiniCard
+        addDropdownIndicator(MiniSelectButton,MiniBossDropdown)
         closeMiniBossDropdown = function()
             MiniBossDropdown.Visible = false
-            MiniCard.Size = UDim2.new(1, 0, 0, 96)
+            MiniCard.Size = UDim2.new(1, 0, 0, 58)
         end
         addCorner(MiniBossDropdown, 9)
         addStroke(MiniBossDropdown, Color3.fromRGB(66, 67, 79), 1, 0.1)
@@ -9685,7 +10453,7 @@ runSection("AutoFarm", function()
             row.Name = "MiniBoss_" .. entry.name:gsub("%W", "")
             row.Size = UDim2.new(1, -7, 0, 34)
             row.LayoutOrder = index
-            row.BackgroundColor3 = farmPalette.input
+            row.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
             row.BorderSizePixel = 0
             row.AutoButtonColor = true
             row.TextXAlignment = Enum.TextXAlignment.Left
@@ -9706,14 +10474,7 @@ runSection("AutoFarm", function()
             MiniStroke.Transparency = miniBossEnabled and 0.6 or 0.3
             tween(MiniKnob, {Position = miniBossEnabled and UDim2.new(1, -25, 0.5, -11)
                 or UDim2.new(0, 3, 0.5, -11)}, 0.18)
-            if #miniSelectionOrder == 0 then
-                MiniSelectButton.Text = "Select Mini Boss"
-            elseif #miniSelectionOrder == 1 then
-                local only = miniByName[miniSelectionOrder[1]]
-                MiniSelectButton.Text = only.name .. "  [Lv. " .. only.level .. "+]"
-            else
-                MiniSelectButton.Text = tostring(#miniSelectionOrder) .. " Mini Bosses Selected"
-            end
+            MiniSelectButton.Text = "Select Mini Boss"
             for _, entry in ipairs(miniBossCatalog) do
                 local on = miniSelected[entry.name] == true
                 local row = miniRows[entry.name]
@@ -9956,7 +10717,7 @@ runSection("AutoFarm", function()
             if FarmTargetDropdown then FarmTargetDropdown.Visible = false end
             if BossDropdown then BossDropdown.Visible = false end
             MiniBossDropdown.Visible = not MiniBossDropdown.Visible
-            MiniCard.Size = UDim2.new(1, 0, 0, MiniBossDropdown.Visible and 324 or 96)
+            MiniCard.Size = UDim2.new(1, 0, 0, MiniBossDropdown.Visible and 304 or 58)
         end)
         connect(MiniToggle.MouseButton1Click, function()
             if miniBossEnabled then stopMiniBoss() else startMiniBoss() end
@@ -9964,7 +10725,7 @@ runSection("AutoFarm", function()
         Stoppers.MiniBoss = function()
             stopMiniBoss()
             MiniBossDropdown.Visible = false
-            MiniCard.Size = UDim2.new(1, 0, 0, 96)
+            MiniCard.Size = UDim2.new(1, 0, 0, 58)
         end
         renderMini()
     end
@@ -10008,21 +10769,10 @@ runSection("AutoFarm", function()
     BossKnob.Parent = BossTrack
     addCorner(BossKnob, 11)
 
-    local BossCard = createStyledCard(AutoFarmPage, "WorldBossSelectorCard", 96, 8)
+    local BossCard = createStyledCard(AutoFarmPage, "WorldBossSelectorCard", 58, 8)
     -- Match the Auto World Boss toggle's gray surface and gradient.
     BossCard.BackgroundColor3 = BossToggleCard.BackgroundColor3
     BossCard.ZIndex = 3
-    local BossSelectTitle = Instance.new("TextLabel")
-    BossSelectTitle.Name = "WorldBossSectionTitle"
-    BossSelectTitle.Size = UDim2.new(1, -20, 0, 25)
-    BossSelectTitle.Position = UDim2.fromOffset(10, 8)
-    BossSelectTitle.BackgroundTransparency = 1
-    BossSelectTitle.Text = "Select Summon Boss"
-    BossSelectTitle.TextColor3 = farmPalette.text
-    BossSelectTitle.Font = Enum.Font.GothamBold
-    BossSelectTitle.TextSize = 18
-    BossSelectTitle.TextXAlignment = Enum.TextXAlignment.Left
-    BossSelectTitle.Parent = BossCard
 
     local BossSelectButton = Instance.new("TextButton")
     BossSelectButton.Name = "SelectWorldBoss"
@@ -10052,6 +10802,7 @@ runSection("AutoFarm", function()
     BossDropdown.ZIndex = 15
     BossDropdown.Visible = false
     BossDropdown.Parent = BossCard
+    addDropdownIndicator(BossSelectButton,BossDropdown)
     addCorner(BossDropdown, 9)
     addStroke(BossDropdown, Color3.fromRGB(66, 67, 79), 1, 0.1)
 
@@ -10066,7 +10817,7 @@ runSection("AutoFarm", function()
         row.Name = "WorldBoss_" .. entry.name:gsub("[^%w]", "")
         row.Size = UDim2.new(1, -12, 0, 34)
         row.Position = UDim2.fromOffset(6, 7 + (index - 1) * 40)
-        row.BackgroundColor3 = farmPalette.input
+        row.BackgroundColor3 = Color3.fromRGB(24, 24, 29)
         row.BorderSizePixel = 0
         row.Text = entry.name .. " [Lv. " .. entry.level .. "+]"
         row.TextColor3 = farmPalette.muted
@@ -10104,7 +10855,7 @@ runSection("AutoFarm", function()
         tween(BossKnob, {
             Position = WorldBoss.Enabled and UDim2.new(1, -25, 0.5, -11) or UDim2.new(0, 3, 0.5, -11),
         }, 0.18)
-        BossSelectButton.Text = WorldBoss.Selected or "Select Summon Boss"
+        BossSelectButton.Text = "Select Summon Boss"
         for _, entry in ipairs(summonBossCatalog) do
             local row = bossRows[entry.name]
             local selected = WorldBoss.Selected == entry.name
@@ -12039,7 +12790,7 @@ runSection("Config", function()
         if antiAfkWorker then pcall(task.cancel, antiAfkWorker); antiAfkWorker = nil end
         if QuestRuntime.ReleaseAttack then QuestRuntime.ReleaseAttack() end
     end
-    local setAntiAfk = createCombatToggle(ConfigPage, "AntiAfkToggleCard", "Anti AFK", 5, function(state)
+    local setAntiAfk = createCombatToggle(ConfigPage, "AntiAfkToggleCard", "Anti AFK", 6, function(state)
         stopAntiAfk()
         antiAfkEnabled = state == true
         if not antiAfkEnabled then return end
@@ -12055,8 +12806,8 @@ runSection("Config", function()
     -- Comeca ligado e continua podendo ser desligado pelo toggle normalmente.
     setAntiAfk(true)
     Stoppers.AntiAfk = stopAntiAfk
-    createCombatToggle(ConfigPage, "FPSBoostToggleCard", "FPS Boost", 6, Graphics.setEnabled)
-    createCombatToggle(ConfigPage, "SafeModeToggleCard", "Safe Mode", 7, SafeMode.setEnabled)
+    createCombatToggle(ConfigPage, "FPSBoostToggleCard", "FPS Boost", 7, Graphics.setEnabled)
+    createCombatToggle(ConfigPage, "SafeModeToggleCard", "Safe Farm", 4, SafeMode.setEnabled)
 
     local FarmDistanceCard = createStyledCard(ConfigPage, "FarmDistanceCard", 96, 2)
     local FarmDistanceTitle = Instance.new("TextLabel")
@@ -12224,16 +12975,21 @@ runSection("Config", function()
         local camera = workspace.CurrentCamera
         local look = camera and camera.CFrame.LookVector or root.CFrame.LookVector
         local right = camera and camera.CFrame.RightVector or root.CFrame.RightVector
-        look = Vector3.new(look.X, 0, look.Z)
-        right = Vector3.new(right.X, 0, right.Z)
-        look = look.Magnitude > 0.001 and look.Unit or Vector3.new(0, 0, -1)
-        right = right.Magnitude > 0.001 and right.Unit or Vector3.new(1, 0, 0)
-
-        local movement = FLIGHT_ZERO
-        if keyHeld(Enum.KeyCode.W) then movement = movement + look end
-        if keyHeld(Enum.KeyCode.S) then movement = movement - look end
-        if keyHeld(Enum.KeyCode.D) then movement = movement + right end
-        if keyHeld(Enum.KeyCode.A) then movement = movement - right end
+        -- MoveDirection is world-space input from Roblox controls, including
+        -- the mobile thumbstick. Recover its camera yaw input, then apply
+        -- the full camera direction so looking up/down also steers the fly.
+        local flatRight = Vector3.new(right.X, 0, right.Z)
+        flatRight = flatRight.Magnitude > 0.001 and flatRight.Unit or Vector3.new(1, 0, 0)
+        local flatForward = Vector3.new(flatRight.Z, 0, -flatRight.X)
+        local input = humanoid.MoveDirection
+        local movement = look * input:Dot(flatForward) + right * input:Dot(flatRight)
+        if movement.Magnitude < 0.001 then
+            -- Retain keyboard support if the game's controls are unavailable.
+            if keyHeld(Enum.KeyCode.W) then movement = movement + look end
+            if keyHeld(Enum.KeyCode.S) then movement = movement - look end
+            if keyHeld(Enum.KeyCode.D) then movement = movement + right end
+            if keyHeld(Enum.KeyCode.A) then movement = movement - right end
+        end
         if keyHeld(Enum.KeyCode.Space) or keyHeld(Enum.KeyCode.E) then
             movement = movement + Vector3.new(0, 1, 0)
         end
@@ -12263,7 +13019,7 @@ runSection("Config", function()
         end
     end
 
-    local setFlyToggle = createCombatToggle(ConfigPage, "ManualFlyToggleCard", "Voo", 4, function(state)
+    local setFlyToggle = createCombatToggle(ConfigPage, "ManualFlyToggleCard", "Fly", 5, function(state)
         setManualFlight(state)
     end)
 
@@ -12273,7 +13029,7 @@ runSection("Config", function()
     FlySpeedTitle.Size = UDim2.new(1, -112, 0, 24)
     FlySpeedTitle.Position = UDim2.fromOffset(16, 8)
     FlySpeedTitle.BackgroundTransparency = 1
-    FlySpeedTitle.Text = "Speed Voo"
+    FlySpeedTitle.Text = "Fly Speed"
     FlySpeedTitle.TextColor3 = Theme.Text
     FlySpeedTitle.Font = Enum.Font.GothamBold
     FlySpeedTitle.TextSize = 14
@@ -12377,7 +13133,7 @@ runSection("Config", function()
         elapsed = 0
         local ok, err = pcall(updateManualFlight)
         if not ok then
-            warn("[Random Hub | Voo] " .. tostring(err))
+            warn("[Random Hub | Fly] " .. tostring(err))
             setFlyToggle(false)
         end
     end)
