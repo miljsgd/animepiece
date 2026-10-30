@@ -1347,25 +1347,6 @@ runSection("Runtime", function()
         if character and character.Parent and root and humanoid and humanoid.Health > 0 then return character, root, humanoid end
     end
 
-    function Motion.releaseAim()
-        Motion.aimPoint = nil
-        local saved = Motion.farmView
-        Motion.farmView = nil
-        if not saved then return end
-        pcall(function()
-            local subject = saved.subject
-            if not subject or not subject.Parent then
-                local character = LocalPlayer.Character
-                subject = character and character:FindFirstChildOfClass("Humanoid")
-            end
-            if subject then saved.camera.CameraSubject = subject end
-            saved.camera.CameraType = saved.cameraType
-        end)
-        pcall(function()
-            if saved.mouseBehavior ~= nil then UserInputService.MouseBehavior = saved.mouseBehavior end
-        end)
-    end
-
     function Motion.cancelLongTravel(owner)
         local job = Motion.longTravel
         if not job or (owner and job.owner ~= owner) then return end
@@ -2064,8 +2045,6 @@ runSection("Runtime", function()
         Landing.clear()
         SafeMode.clear()
         Motion.cancelLongTravel()
-        Motion.aimValidation = nil
-        Motion.releaseAim()
         Motion.streamToken = (Motion.streamToken or 0) + 1
         if Motion.streamThread then pcall(task.cancel, Motion.streamThread); Motion.streamThread = nil end
         if Motion.streamRequestThread then pcall(task.cancel, Motion.streamRequestThread); Motion.streamRequestThread = nil end
@@ -2087,7 +2066,7 @@ runSection("Runtime", function()
             Motion.root.AssemblyAngularVelocity = zero
         end
         Motion.owner, Motion.target, Motion.root, Motion.humanoid = nil, nil, nil, nil
-        Motion.mode, Motion.aimPoint, Motion.savedAutoRotate = nil, nil, nil
+        Motion.mode, Motion.savedAutoRotate = nil, nil
         Motion.arrived, Motion.walkRange = false, nil
     end
 
@@ -2473,106 +2452,6 @@ runSection("Runtime", function()
         if (facing - root.Position).Magnitude > 0.05 then root.CFrame = CFrame.lookAt(root.Position, facing) end
     end
 
-    function Motion.lockFarmView(camera, part, root)
-        local saved = Motion.farmView
-        if saved and saved.camera ~= camera then Motion.releaseAim(); saved = nil end
-        if not saved then
-            local offset = camera.CFrame.Position - root.Position
-            local horizontal = Vector3.new(offset.X, 0, offset.Z).Magnitude
-            saved = {
-                camera = camera, cameraType = camera.CameraType, subject = camera.CameraSubject,
-                distance = math.clamp(horizontal, 6, 24), height = math.clamp(offset.Y, 2, 12),
-            }
-            Motion.farmView = saved
-            Motion.mouseUnavailable = false
-        end
-        camera.CameraType = Enum.CameraType.Scriptable
-        local direction = Motion.direction or Vector3.new(0, 0, 1)
-        local position = root.Position + direction * saved.distance + Vector3.new(0, saved.height, 0)
-        camera.CFrame = CFrame.lookAt(position, part.Position)
-        camera.Focus = CFrame.new(part.Position)
-    end
-
-    -- All Auto Farm modes (regular mobs, mini bosses, summon bosses and world bosses)
-    -- aim at the current validated Farm target, independent of Auto Skills.
-    -- No new world scan is performed: only the target already owned by Motion is used.
-    function Motion.aimSelectedMob(target)
-        local now = os.clock()
-        if destroyed or Motion.owner ~= "Farm" or Motion.kind ~= "mob"
-            or Motion.target ~= target or not Motion.allowed("Farm")
-            or now > (Motion.lease or 0) or not World.liveMob(target)
-            or QuestRuntime.Interacting or QuestRuntime.AcceptanceMoving
-            or QuestRuntime.FruitBuying or QuestRuntime.ItemBusy
-            or UserInputService:GetFocusedTextBox() then
-            Motion.releaseAim()
-            return false
-        end
-
-        -- The regular farm validator is cached by World; special boss targets
-        -- are additionally validated against the boss mode that selected them.
-        -- Keep a short aim cache to avoid repeatedly scanning boss descendants.
-        local check = Motion.aimValidation
-        if not check or check.target ~= target or now >= check.expires then
-            local valid = isValidFarmMob(target)
-                or (World.confirmCombatTarget and World.confirmCombatTarget(target))
-            check = {target = target, valid = valid == true, expires = now + 0.4}
-            Motion.aimValidation = check
-        end
-        if not check.valid then
-            Motion.releaseAim()
-            return false
-        end
-
-        local _, root = Motion.character()
-        local camera = workspace.CurrentCamera
-        local head = target:FindFirstChild("Head")
-        local part = head and head:IsA("BasePart") and head or getMobRoot(target)
-        if not root or root ~= Motion.root or not camera or not part then
-            Motion.releaseAim()
-            return false
-        end
-
-        if Motion.farmView and Motion.farmView.camera ~= camera then
-            Motion.releaseAim()
-        end
-        -- Preserve the player's regular camera while the mob is visible;
-        -- only turn it to the mob when it moves outside the screen.
-        if Motion.farmView then Motion.lockFarmView(camera, part, root) end
-        local point, visible = camera:WorldToScreenPoint(part.Position)
-        if not visible or point.Z <= 0 then
-            Motion.lockFarmView(camera, part, root)
-            point, visible = camera:WorldToScreenPoint(part.Position)
-        end
-        if not visible or point.Z <= 0 then
-            Motion.releaseAim()
-            return false
-        end
-
-        Motion.aimPoint = Vector2.new(point.X, point.Y)
-        local moved = VirtualInputManager and pcall(function()
-            VirtualInputManager:SendMouseMoveEvent(point.X, point.Y, game)
-        end)
-        if moved ~= true then
-            Motion.releaseAim()
-            return false
-        end
-        return true
-    end
-
-    function Motion.aim()
-        local now = os.clock()
-        local target = Motion.target
-        if destroyed or Motion.owner ~= "Farm" or Motion.kind ~= "mob"
-            or not target or now > (Motion.lease or 0) then
-            Motion.aimValidation = nil
-            if Motion.aimPoint or Motion.farmView then Motion.releaseAim() end
-            return
-        end
-        if now < (Motion.nextFarmAimAt or 0) then return end
-        Motion.nextFarmAimAt = now + 1 / 30
-        Motion.aimSelectedMob(target)
-    end
-
     local elapsed, lastError = 0, -math.huge
     connect(RunService.Heartbeat, function(dt)
         elapsed = elapsed + dt
@@ -2586,15 +2465,6 @@ runSection("Runtime", function()
             if os.clock() - lastError > 8 then warn("[Random Hub | Movimento] " .. tostring(err)); lastError = os.clock() end
         end
     end)
-    local aimBinding = "RandomHubFarmAim_" .. tostring(ScreenGui)
-    local function updateAim()
-        local ok = pcall(Motion.aim)
-        if not ok then Motion.releaseAim() end
-    end
-    local aimBound = pcall(function()
-        RunService:BindToRenderStep(aimBinding, Enum.RenderPriority.Camera.Value + 1, updateAim)
-    end)
-    if not aimBound then connect(RunService.RenderStepped, updateAim) end
     connect(LocalPlayer.CharacterRemoving, function()
         World.characterUnavailable = true
         if QuestRuntime.CancelAcceptance then QuestRuntime.CancelAcceptance("respawn") end
@@ -2606,7 +2476,6 @@ runSection("Runtime", function()
     end)
     connect(LocalPlayer.CharacterAdded, function() World.characterUnavailable = false end)
     Stoppers.Runtime = function()
-        if aimBound then pcall(function() RunService:UnbindFromRenderStep(aimBinding) end) end
         Motion.release()
         Motion.cancelManual()
         if indexThread then pcall(task.cancel, indexThread) end
@@ -2774,7 +2643,7 @@ runSection("FarmModes", function()
         if not part then A.reset();Motion.release(owner);return false,true end
         if A.target~=target then
             if (root.Position-part.Position).Magnitude>A.arrivalRadius then return false end
-            -- Release flight/noclip, prone rotation, stream jobs and the farm camera.
+            -- Release flight/noclip, prone rotation and stream jobs.
             -- Reclaim the same target without moving the character's position.
             local spacing=Motion.spacing
             Motion.release(owner)
@@ -3931,8 +3800,8 @@ runSection("Combat", function()
                         CombatCfg.SkillBusy, QuestRuntime.SkillBusy = true, true
                         combatReleaseAutoAttackInputs()
                         CombatCfg.SkillNextAt = os.clock() + CombatCfg.SkillInterval
-                        -- Auto Skills only presses the selected skills. Cursor aim is
-                        -- managed exclusively by the Auto Farm target controller.
+                        -- Auto Skills only presses the selected skills. It never moves
+                        -- the mouse or camera.
                         if CombatCfg.AutoSkillEnabled and combatSkillTarget() == target then
                             combatPressKey(skill.Code)
                         end
@@ -3955,7 +3824,7 @@ runSection("Combat", function()
         CombatCfg.AutoSkillEnabled = state == true
         QuestRuntime.AutoSkillsEnabled = CombatCfg.AutoSkillEnabled
         if not CombatCfg.AutoSkillEnabled then
-            -- Do not touch the farm cursor: Auto Skills has no aim control.
+            -- Only stop skill inputs; do not modify the mouse or camera.
             combatCancelThread(CombatCfg.SkillThread)
             CombatCfg.SkillThread = nil
             CombatCfg.SkillBusy = false
