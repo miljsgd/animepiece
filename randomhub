@@ -167,6 +167,7 @@ local function runSection(name, builder)
 end
 
 local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.AutoLocalize = false
 ScreenGui.Name = "FlyUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -542,6 +543,7 @@ runSection("Navigation", function()
     createPage("AutoItems", false, true)
     createPage("Fruit", false, true)
     createPage("AutoStats", false, true)
+    createPage("Movement", false, true)
     createPage("Config", false, true)
     createPage("Teleport", false, true)
 
@@ -565,7 +567,7 @@ runSection("Navigation", function()
         label.Size = UDim2.new(1, -24, 1, 0)
         label.Position = UDim2.new(0, 12, 0, 0)
         label.BackgroundTransparency = 1
-        label.Text = id == "AutoQuest" and "Auto Quest" or (id == "AutoFarm" and "Auto Farm" or (id == "AutoItems" and "Auto Items" or (id == "AutoStats" and "Auto Stats" or id)))
+        label.Text = id == "AutoQuest" and "Auto Quest" or (id == "AutoFarm" and "Auto Farm" or (id == "AutoItems" and "Auto Items" or (id == "AutoStats" and "Auto Stats" or (id == "Config" and "Settings" or id))))
         label.TextColor3 = id == "Home" and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
         label.Font = Enum.Font.GothamBold
         label.TextSize = 13
@@ -596,7 +598,8 @@ runSection("Navigation", function()
         Fruit = createNavTab("Fruit", 6),
         AutoStats = createNavTab("AutoStats", 7),
         Teleport = createNavTab("Teleport", 8),
-        Config = createNavTab("Config", 9),
+        Movement = createNavTab("Movement", 9),
+        Config = createNavTab("Config", 10),
     }
     local currentPage = "Home"
     local function setActivePage(name)
@@ -2672,8 +2675,9 @@ runSection("FarmModes", function()
     end
     local normalStep=Motion.step
     function Motion.step(dt)
+        local chest=Motion.owner=="Items" and Motion.kind=="chest" and not SafeMode.Enabled
         local controlled=Motion.owner=="Farm" or Motion.owner=="Swords"
-        if not F.isFly() or not controlled then
+        if not chest and (not F.isFly() or not controlled) then
             if F.flight then F.clearFlight() end
             return normalStep(dt)
         end
@@ -2701,7 +2705,8 @@ runSection("FarmModes", function()
             face=anchor.Position+Vector3.new(0,anchor.Size.Y*0.5,0)
             destination=face+Vector3.new(0,Motion.spacing,0)
         elseif Motion.kind~="point" then
-            local height=Motion.kind=="item" and 1 or Motion.kind=="giver" and 0 or 1
+            local height=chest and ((Motion.spacing or 0)>0 and 1.15 or 0.25)
+                or Motion.kind=="item" and 1 or Motion.kind=="giver" and 0 or 1
             destination=point+Motion.direction*(Motion.spacing or 0)+Vector3.new(0,height,0)
         end
         F.begin(character,root,human)
@@ -2710,7 +2715,7 @@ runSection("FarmModes", function()
         if distance>180 and now>=(F.nextStreamAt or 0) then
             F.nextStreamAt=now+1;Motion.prepareStream(point)
         end
-        local speed=distance>0.25 and math.min(F.flySpeed,distance/math.max(dt,1/60)) or 0
+        local speed=distance>0.25 and math.min(chest and 250 or F.flySpeed,distance/math.max(dt,1/60)) or 0
         local velocity=speed>0 and offset.Unit*speed or Vector3.new(0,0,0)
         Motion.velocity.VectorVelocity=velocity
         root.AssemblyLinearVelocity=velocity
@@ -2722,7 +2727,7 @@ runSection("FarmModes", function()
             if flat.Magnitude>0.05 then F.heading=flat.Unit end
             root.CFrame=CFrame.lookAt(root.Position,root.Position+(F.heading or Vector3.new(0,0,-1)))
         end
-        Motion.mode,Motion.arrived="FLY_FARM",distance<=(farm and 0.25 or 1.25)
+        Motion.mode,Motion.arrived=chest and "CHEST_FLY" or "FLY_FARM",distance<=(farm and 0.25 or 1.25)
         QuestRuntime.AimTarget=farm and target or nil
     end
     function F.travel(owner,destination,face,valid,tolerance)
@@ -4363,7 +4368,7 @@ runSection("AutoChest", function()
     AutoChestDescription.Size = UDim2.new(1, -100, 0, 18)
     AutoChestDescription.Position = UDim2.fromOffset(16, 31)
     AutoChestDescription.BackgroundTransparency = 1
-    AutoChestDescription.Text = "Teleport to detected chests around the map"
+    AutoChestDescription.Text = "Fly to chests at 250 speed; walk with Safe Farm"
     AutoChestDescription.Visible = false
     AutoChestDescription.TextColor3 = Theme.TextDim
     AutoChestDescription.Font = Enum.Font.Gotham
@@ -4486,6 +4491,7 @@ runSection("AutoChest", function()
 
     function Items.newFruitMarker(part)
         local billboard = Instance.new("BillboardGui")
+        billboard.AutoLocalize = false
         billboard.Name = "RandomHubDetectedFruit"
         billboard.Adornee = part
         billboard.Size = UDim2.fromOffset(220, 65)
@@ -4619,7 +4625,7 @@ runSection("AutoChest", function()
         Items.heldPrompt, Items.heldKey, Items.holdUntil = nil, nil, nil
         Items.endTouch()
         Items.fastChestPhase, Items.fastChestHoldUntil, Items.fastChestDestination = nil, nil, nil
-        Items.safeChestDeadline = nil
+        Items.safeChestDeadline, Items.chestTravelDeadline = nil, nil
         Motion.cancelLongTravel("Items")
         if Items.target and cooldown then Items.cooldowns[Items.target.object] = os.clock() + cooldown end
         Items.target, Items.startedAt, Items.interactedAt, Items.contactAt = nil, nil, nil, nil
@@ -5021,75 +5027,36 @@ runSection("AutoChest", function()
             info = renewed
             Items.target = info
         else
-             
             info = Items.find(now, root)
             Items.fastChestFound = info ~= nil
-            if not info then
-                Items.nextSearch = now
-                Items.scanRegion(now)  
-                return
-            end
+            if not info then Items.nextSearch=now;Items.scanRegion(now);return end
             Items.target = info
             Items.startedAt, Items.attempts = now, 0
             Items.contactAt, Items.interactedAt = nil, nil
-            Items.fastChestPhase = "teleport"
-            Items.fastChestHoldUntil = nil
+            Items.fastChestPhase, Items.fastChestHoldUntil = "move", nil
         end
-
-        if SafeMode.Enabled and (Items.fastChestPhase == "teleport" or Items.fastChestPhase == "walk") then
-            Items.fastChestPhase = "walk"
-            Items.safeChestDeadline = Items.safeChestDeadline or (now + math.clamp((root.Position - info.part.Position).Magnitude / math.max(1, SafeMode.walkSpeed()) + 45, 35, 600))
-            if now > Items.safeChestDeadline then
-                Items.fastChestVisited[info.object] = true
-                Items.clear("unreachable")
-                return
+        if Items.fastChestPhase=="move" or Items.fastChestPhase=="walk" or Items.fastChestPhase=="fly" then
+            local safe=SafeMode.Enabled
+            local phase=safe and "walk" or "fly"
+            if Items.fastChestPhase~=phase then
+                Items.fastChestPhase=phase
+                local speed=safe and math.max(1,SafeMode.walkSpeed()) or 250
+                Items.chestTravelDeadline=now+math.clamp((root.Position-info.part.Position).Magnitude/speed+45,45,600)
             end
-            local interactive = info.prompt ~= nil or info.click ~= nil
-            if not Motion.request("Items", info.part, interactive and 1 or 0, "item") then
-                Items.clear("paused"); return
+            if now>(Items.chestTravelDeadline or now+45) then Items.clear("unreachable",20);return end
+            local interactive=info.prompt~=nil or info.click~=nil
+            local spacing=interactive and (safe and 1 or 1.5) or 0
+            if not Motion.request("Items",info.part,spacing,safe and "item" or "chest") then
+                Items.clear("paused");return
             end
-            QuestRuntime.ItemBusy = true
-            local range = info.prompt and math.min(5, info.prompt.MaxActivationDistance)
-                or (info.click and math.min(5, info.click.MaxActivationDistance)) or 3.5
-            if (root.Position - info.part.Position).Magnitude > range then return end
+            QuestRuntime.ItemBusy=true
+            local range=info.prompt and math.min(5,info.prompt.MaxActivationDistance)
+                or (info.click and math.min(5,info.click.MaxActivationDistance)) or (safe and 3.5 or 0.75)
+            if (root.Position-info.part.Position).Magnitude>range then return end
             Motion.release("Items")
-            Items.fastChestPhase = "interact"
-            return
-        elseif Items.fastChestPhase == "walk" then
-            Items.fastChestPhase = "teleport"
-        end
-
-        if Items.fastChestPhase == "teleport" then
-             
-            Motion.release()
-            QuestRuntime.ItemBusy = true
-            local part = info.part
-            local point = part.Position
-            local direction = root.Position - point
-            direction = Vector3.new(direction.X, 0, direction.Z)
-            if direction.Magnitude < 0.05 then direction = Vector3.new(0, 0, 1) end
-            direction = direction.Unit
-            local interactive = info.prompt ~= nil or info.click ~= nil
-            local targetPosition = point + direction * (interactive and 1.5 or 0.45)
-                + Vector3.new(0, interactive and 1.15 or 0.25, 0)
-            local facing = CFrame.lookAt(targetPosition, point)
-            local moved = Motion.pivotDirect(character, root, facing)
-            Items.fastChestDestination = facing.Position
-            Items.fastChestPhase = moved and "interact" or "waitTeleport"
+            Items.fastChestPhase="interact"
             return
         end
-
-        if Items.fastChestPhase == "waitTeleport" then
-            if Motion.longTravel and Motion.longTravel.owner == "Items" then return end
-            local point = Items.fastChestDestination
-            if point and (root.Position - point).Magnitude <= 9 then
-                Items.fastChestPhase = "interact"
-            else
-                Items.fastChestPhase = "teleport"
-            end
-            return
-        end
-
         QuestRuntime.ItemBusy = true
         if Items.fastChestPhase == "touching" then
              
@@ -5137,9 +5104,10 @@ runSection("AutoChest", function()
                 end
                 if not started then
                      
-                    started = pcall(function()
-                        Motion.pivotDirect(character, root, CFrame.new(info.part.Position + Vector3.new(0, 0.25, 0)))
-                    end)
+                    -- Arrival already used physical movement; wait for natural contact.
+                    Items.fastChestHoldUntil = now + 0.6
+                    Items.fastChestPhase = "holding"
+                    return
                 end
             end
             Items.fastChestPhase = "finish"
@@ -5154,7 +5122,7 @@ runSection("AutoChest", function()
             Items.nextSearch = 0
             return
         end
-        Items.fastChestPhase = "teleport"
+        Items.fastChestPhase = "move"
     end
 
     function Items.tick(now)
@@ -5318,7 +5286,7 @@ runSection("AutoChest", function()
                 if not ok then Items.clear("error", 10) end
                  
                  
-                task.wait(autoChestEnabled and (SafeMode.Enabled and 0.15 or (Items.fastChestFound and 0 or 0.2)) or 0.6)
+                task.wait(autoChestEnabled and (SafeMode.Enabled and 0.15 or (Items.fastChestFound and 0.05 or 0.2)) or 0.6)
             end
         end)
     end
@@ -12731,7 +12699,8 @@ runSection("AutoFarm", function()
 
     -- Timed World Bosses are separate from the existing material/summon system.
     local W=TimedWorldBoss
-    W.enabled,W.selected,W.generation=false,"Light User",0
+    W.enabled,W.selected,W.generation=false,{["Light User"]=true},0
+    W.cursor,W.routeRevision=0,0
     W.catalog={
         {name="Light User",position=Vector3.new(-1467.57,8.81,1509.84)},
         {name="Old White",position=Vector3.new(-1477.45,3.81,1309.66)},
@@ -12739,7 +12708,7 @@ runSection("AutoFarm", function()
     }
     W.byName={};for _,entry in ipairs(W.catalog) do W.byName[entry.name]=entry end
     W.names=setmetatable({}, {__mode="k"})
-    W.searchAt,W.travelAt=0,-math.huge
+    W.searchAt=0
     World.TimedBosses=W
     function W.key(value)
         local text=tostring(value or ""):gsub("(%l)(%u)","%1 %2"):lower():gsub("<[^>]*>","")
@@ -12797,51 +12766,78 @@ runSection("AutoFarm", function()
         end
         return selected
     end
-    function W.stop()
-        if not W.enabled and not W.worker then return end
-        W.enabled,W.target=false,nil;W.generation=W.generation+1
-        if W.worker then pcall(task.cancel,W.worker);W.worker=nil end
+    function W.releaseTarget()
+        W.target=nil
         Motion.release("Farm")
         if QuestRuntime.ReleaseAttack then QuestRuntime.ReleaseAttack() end
+    end
+    function W.advance()
+        W.releaseTarget()
+        W.routeRevision=W.routeRevision+1
+        W.current,W.arrivedAt,W.searchAt=nil,nil,0
+        for offset=1,#W.catalog do
+            local index=(W.cursor+offset-1)%#W.catalog+1
+            local entry=W.catalog[index]
+            if W.selected[entry.name] then W.cursor,W.current=index,entry.name;return entry end
+        end
+    end
+    function W.allSelected()
+        for _,entry in ipairs(W.catalog) do if not W.selected[entry.name] then return false end end
+        return true
+    end
+    function W.stop()
+        if not W.enabled and not W.worker then return end
+        W.enabled=false;W.generation=W.generation+1
+        if W.worker then pcall(task.cancel,W.worker);W.worker=nil end
+        W.releaseTarget();W.current,W.arrivedAt=nil,nil
         QuestRuntime.AutoFarmEnabled=autoFarmEnabled or WorldBoss.Enabled
         if W.render then W.render() end
     end
     World.StopTimedBoss=W.stop
     WorldBoss.IsTimedTarget=function(model)
-        return W.enabled and W.target==model and W.valid(model,W.byName[W.selected])
+        return W.enabled and W.selected[W.current]==true and W.target==model and W.valid(model,W.byName[W.current])
     end
     function W.tick(now)
         if not W.enabled or destroyed or not World.ready then return end
         if World.characterUnavailable or not Motion.allowed("Farm") or QuestRuntime.Interacting
             or QuestRuntime.AcceptanceMoving or QuestRuntime.FruitBuying or QuestRuntime.ItemBusy then
-            Motion.release("Farm");return
+            W.releaseTarget();W.arrivedAt=nil;return
         end
         local character,root=Motion.character()
-        if not character or not root then W.target=nil;Motion.release("Farm");return end
-        local entry=W.byName[W.selected]
+        if not character or not root then W.releaseTarget();W.arrivedAt=nil;return end
+        local entry=W.byName[W.current]
+        if not entry or not W.selected[entry.name] then entry=W.advance() end
+        if not entry then QuestRuntime.AutoFarmEnabled=false;return end
+        QuestRuntime.AutoFarmEnabled=true
+        if W.target and not W.valid(W.target,entry) then entry=W.advance() end
         if not entry then return end
-        if W.target and not W.valid(W.target,entry) then
-            W.target=nil;W.searchAt=now+0.75;Motion.release("Farm")
-            if QuestRuntime.ReleaseAttack then QuestRuntime.ReleaseAttack() end
-        end
         if not W.target and now>=W.searchAt then W.searchAt=now+0.75;W.target=W.find(entry) end
         if W.target then
-            QuestRuntime.AutoFarmEnabled=true
+            W.arrivedAt=nil
             Motion.request("Farm",W.target,math.clamp(tonumber(farmDistance) or 1,1,10),"mob")
             return
         end
         local destination=entry.position+Vector3.new(0,3,0)
-        if (root.Position-destination).Magnitude<=20 then Motion.release("Farm");return end
-        local generation,selected=W.generation,W.selected
+        if (root.Position-destination).Magnitude<=20 then
+            Motion.release("Farm")
+            W.arrivedAt=W.arrivedAt or now
+            -- Let streamed NPCs load before declaring this camp empty.
+            if now-W.arrivedAt>=2 then W.advance() end
+            return
+        end
+        W.arrivedAt=nil
+        local generation,revision,current=W.generation,W.routeRevision,W.current
         local function valid()
-            return not destroyed and W.enabled and W.generation==generation and W.selected==selected and Motion.allowed("Farm")
+            return not destroyed and W.enabled and W.generation==generation and W.routeRevision==revision
+                and W.current==current and W.selected[current]==true and not World.characterUnavailable
+                and Motion.allowed("Farm") and not QuestRuntime.Interacting and not QuestRuntime.AcceptanceMoving
+                and not QuestRuntime.FruitBuying and not QuestRuntime.ItemBusy
         end
         if FarmMode.isFly() then
             FarmMode.travel("Farm",destination,destination,valid,18)
         elseif SafeMode.Enabled then
             Motion.walkTo("Farm",destination,nil,valid,18)
         else
-            -- The normal motion/streaming controller owns the TP approach.
             Motion.request("Farm",nil,0,"point",destination)
         end
     end
@@ -12850,15 +12846,15 @@ runSection("AutoFarm", function()
         if autoFarmEnabled then disableAutoFarm() end
         if stopMiniBoss then stopMiniBoss() end
         if WorldBoss.Enabled and WorldBoss.Stop then WorldBoss.Stop() end
-        W.enabled,W.target=true,nil;W.generation=W.generation+1;W.searchAt=0
-        QuestRuntime.AutoFarmEnabled=true
+        W.enabled=true;W.generation=W.generation+1;W.cursor=0;W.advance()
+        QuestRuntime.AutoFarmEnabled=W.current~=nil
         local generation=W.generation
         W.worker=task.spawn(function()
             task.wait()
             while W.enabled and generation==W.generation and not destroyed do
                 local ok,err=pcall(W.tick,os.clock())
                 if not ok then
-                    Motion.release("Farm")
+                    W.releaseTarget()
                     if os.clock()>=(W.nextWarning or 0) then
                         W.nextWarning=os.clock()+10;warn("[Random Hub | Auto World Boss] "..tostring(err))
                     end
@@ -12871,15 +12867,22 @@ runSection("AutoFarm", function()
     function W.setEnabled(value)
         if value==true then W.start() else W.stop() end
     end
+    function W.selectionChanged()
+        if W.current and not W.selected[W.current] then W.advance() end
+        if W.enabled then QuestRuntime.AutoFarmEnabled=next(W.selected)~=nil end
+        if W.render then W.render() end
+    end
     function W.select(name)
-        if not W.byName[name] or W.selected==name then return end
-        local active=W.enabled
-        if active then W.stop() end
-        W.selected,W.target=name,nil;W.searchAt=0
-        if active then W.start() elseif W.render then W.render() end
+        if not W.byName[name] then return end
+        W.selected[name]=not W.selected[name] or nil
+        W.selectionChanged()
+    end
+    function W.selectAll()
+        local selected=not W.allSelected()
+        for _,entry in ipairs(W.catalog) do W.selected[entry.name]=selected or nil end
+        W.selectionChanged()
     end
     Stoppers.TimedWorldBoss=W.stop
-
 
     local setTimedToggle=createCombatToggle(AutoFarmPage,"TimedWorldBossToggleCard","Auto World Boss",9,TimedWorldBoss.setEnabled)
     local timedCard=createStyledCard(AutoFarmPage,"TimedWorldBossSelectionCard",58,10)
@@ -12887,29 +12890,38 @@ runSection("AutoFarm", function()
     timedHeader.Name="SelectTimedWorldBoss";timedHeader.Size=UDim2.new(1,0,0,58)
     timedHeader.BorderSizePixel=0;timedHeader.ZIndex=4;timedHeader.Parent=timedCard
     local timedList=Instance.new("Frame")
-    timedList.Name="TimedWorldBossDropdown";timedList.Size=UDim2.new(1,-18,0,122)
+    timedList.Name="TimedWorldBossDropdown";timedList.Size=UDim2.new(1,-18,0,160)
     timedList.Visible=false;timedList.BorderSizePixel=0;timedList.ZIndex=6;timedList.Parent=timedCard
     addDropdownIndicator(timedHeader,timedList);addCorner(timedList,9)
     timedList.BackgroundColor3=Color3.fromRGB(0,0,0)
     local timedRows,timedStrokes={},{}
+    local timedAll=Instance.new("TextButton")
+    timedAll.Name="SelectAllWorldBosses";timedAll.Size=UDim2.new(1,-12,0,34)
+    timedAll.Position=UDim2.fromOffset(6,7);timedAll.BorderSizePixel=0
+    timedAll.BackgroundColor3=Color3.fromRGB(0,0,0);timedAll.TextColor3=Theme.Text
+    timedAll.TextSize=13;timedAll.Font=Enum.Font.GothamBold;timedAll.ZIndex=7;timedAll.Parent=timedList
+    addCorner(timedAll,7)
+    connect(timedAll.MouseButton1Click,function()
+        if not destroyed then TimedWorldBoss.selectAll() end
+    end)
     for index,entry in ipairs(TimedWorldBoss.catalog) do
         local row=Instance.new("TextButton")
         row.Name=entry.name:gsub("%s","");row.Size=UDim2.new(1,-12,0,34)
-        row.Position=UDim2.fromOffset(6,7+(index-1)*38);row.BorderSizePixel=0
+        row.Position=UDim2.fromOffset(6,7+index*38);row.BorderSizePixel=0
         row.TextColor3=Theme.Text;row.TextSize=13;row.Font=Enum.Font.Gotham
         row.ZIndex=7;row.Parent=timedList;addCorner(row,7)
         timedRows[entry.name]=row;timedStrokes[entry.name]=addStroke(row,Theme.Accent2,1.5,1)
         local name=entry.name
         connect(row.MouseButton1Click,function()
-            if destroyed then return end
-            TimedWorldBoss.select(name);timedList.Visible=false
+            if not destroyed then TimedWorldBoss.select(name) end
         end)
     end
     TimedWorldBoss.render=function()
         setTimedToggle(TimedWorldBoss.enabled)
         timedHeader.Text="Select World Boss"
+        timedAll.Text=TimedWorldBoss.allSelected() and "Clear All" or "Select All"
         for name,row in pairs(timedRows) do
-            local selected=TimedWorldBoss.selected==name
+            local selected=TimedWorldBoss.selected[name]==true
             row.Text=(selected and "✓  " or "")..name
             row.BackgroundColor3=selected and Color3.fromRGB(32,32,38) or Color3.fromRGB(0,0,0)
             timedStrokes[name].Transparency=selected and 0 or 1
@@ -12923,7 +12935,6 @@ runSection("AutoFarm", function()
         timedList.Visible=not timedList.Visible
     end)
     TimedWorldBoss.render()
-
 
     local selectorWorker = task.spawn(function()
         local lastWorldRevision = -1
@@ -14026,7 +14037,7 @@ runSection("Config", function()
         if antiAfkWorker then pcall(task.cancel, antiAfkWorker); antiAfkWorker = nil end
         if QuestRuntime.ReleaseAttack then QuestRuntime.ReleaseAttack() end
     end
-    local setAntiAfk = createCombatToggle(ConfigPage, "AntiAfkToggleCard", "Anti AFK", 6, function(state)
+    local setAntiAfk = createCombatToggle(ConfigPage, "AntiAfkToggleCard", "Anti AFK", 7, function(state)
         stopAntiAfk()
         antiAfkEnabled = state == true
         if not antiAfkEnabled then return end
@@ -14042,7 +14053,7 @@ runSection("Config", function()
      
     setAntiAfk(true)
     Stoppers.AntiAfk = stopAntiAfk
-    createCombatToggle(ConfigPage, "FPSBoostToggleCard", "FPS Boost", 7, Graphics.setEnabled)
+    createCombatToggle(ConfigPage, "FPSBoostToggleCard", "FPS Boost", 6, Graphics.setEnabled)
     local modeCard=createStyledCard(ConfigPage,"FarmModeSelectionCard",58,4)
     local modeHeader=Instance.new("TextButton")
     modeHeader.Name="SelectFarmMode";modeHeader.Size=UDim2.new(1,0,0,58)
@@ -14173,6 +14184,11 @@ runSection("Config", function()
 
      
      
+
+end)
+
+runSection("Movement", function()
+    local MovementPage = Pages.Movement
     local RunService = game:GetService("RunService")
     local FLIGHT_ZERO = Vector3.new(0, 0, 0)
 
@@ -14297,11 +14313,11 @@ runSection("Config", function()
         end
     end
 
-    local setFlyToggle = createCombatToggle(ConfigPage, "ManualFlyToggleCard", "Fly", 5, function(state)
+    local setFlyToggle = createCombatToggle(MovementPage, "ManualFlyToggleCard", "Fly", 1, function(state)
         setManualFlight(state)
     end)
 
-    local FlySpeedCard = createStyledCard(ConfigPage, "ManualFlySpeedCard", 96, 3)
+    local FlySpeedCard = createStyledCard(MovementPage, "ManualFlySpeedCard", 96, 2)
     local FlySpeedTitle = Instance.new("TextLabel")
     FlySpeedTitle.Name = "ManualFlySpeedTitle"
     FlySpeedTitle.Size = UDim2.new(1, -112, 0, 24)
@@ -14353,7 +14369,7 @@ runSection("Config", function()
     addCorner(FlySpeedKnob, 9)
     addStroke(FlySpeedKnob, Theme.Accent2, 1, 0.1)
 
-    for _, endpoint in ipairs({{text = "1", right = false}, {text = "200", right = true}}) do
+    for _, endpoint in ipairs({{text = "1", right = false}, {text = "300", right = true}}) do
         local mark = Instance.new("TextLabel")
         mark.Name = endpoint.right and "FlySpeedMax" or "FlySpeedMin"
         mark.Size = UDim2.fromOffset(56, 20)
@@ -14368,7 +14384,7 @@ runSection("Config", function()
     end
 
     local function renderFlySpeed()
-        local fraction = (ManualFlight.Speed - 1) / 199
+        local fraction = (ManualFlight.Speed - 1) / 299
         FlySpeedFill.Size = UDim2.new(fraction, 0, 1, 0)
         FlySpeedKnob.Position = UDim2.new(fraction, -9, 0.5, -9)
         FlySpeedValue.Text = tostring(ManualFlight.Speed)
@@ -14379,7 +14395,7 @@ runSection("Config", function()
         local width = FlySpeedTrack.AbsoluteSize.X
         if width <= 0 then return end
         local fraction = math.clamp((screenX - FlySpeedTrack.AbsolutePosition.X) / width, 0, 1)
-        ManualFlight.Speed = math.clamp(math.floor(1 + 199 * fraction + 0.5), 1, 200)
+        ManualFlight.Speed = math.clamp(math.floor(1 + 299 * fraction + 0.5), 1, 300)
         renderFlySpeed()
     end
     renderFlySpeed()
@@ -14419,9 +14435,110 @@ runSection("Config", function()
         ManualFlight.Enabled = false
         clearManualFlight()
     end
+    -- Manual walking speed is independent of flight and farm travel speeds.
+    local WalkSpeed={Enabled=false,Speed=16}
+    World.ManualSpeed=WalkSpeed
+    function WalkSpeed.restore()
+        local humanoid=WalkSpeed.humanoid
+        if humanoid and humanoid.Parent and WalkSpeed.original~=nil then
+            pcall(function() humanoid.WalkSpeed=WalkSpeed.original end)
+        end
+        WalkSpeed.humanoid,WalkSpeed.original=nil,nil
+    end
+    function WalkSpeed.update()
+        if not WalkSpeed.Enabled or destroyed then return end
+        local character,_,humanoid=Motion.character()
+        if not character or not humanoid or humanoid.Health<=0 then WalkSpeed.restore();return end
+        if WalkSpeed.humanoid~=humanoid then
+            WalkSpeed.restore()
+            WalkSpeed.humanoid,WalkSpeed.original=humanoid,humanoid.WalkSpeed
+        end
+        if humanoid.WalkSpeed~=WalkSpeed.Speed then humanoid.WalkSpeed=WalkSpeed.Speed end
+    end
+    function WalkSpeed.setEnabled(value)
+        WalkSpeed.Enabled=value==true
+        if WalkSpeed.Enabled then WalkSpeed.update() else WalkSpeed.restore() end
+    end
+    function WalkSpeed.setSpeed(value)
+        value=tonumber(value)
+        if not value or value~=value or value==math.huge or value==-math.huge then return end
+        WalkSpeed.Speed=math.clamp(math.floor(value+0.5),1,300)
+        if WalkSpeed.Enabled then WalkSpeed.update() end
+        if WalkSpeed.render then WalkSpeed.render() end
+    end
+    createCombatToggle(MovementPage,"ManualSpeedToggleCard","Speed",3,WalkSpeed.setEnabled)
+    local SpeedCard=createStyledCard(MovementPage,"ManualWalkSpeedCard",96,4)
+    local SpeedTitle=Instance.new("TextLabel")
+    SpeedTitle.Name="WalkSpeedTitle";SpeedTitle.Size=UDim2.new(1,-112,0,24)
+    SpeedTitle.Position=UDim2.fromOffset(16,8);SpeedTitle.BackgroundTransparency=1
+    SpeedTitle.Text="Walk Speed";SpeedTitle.TextColor3=Theme.Text
+    SpeedTitle.Font=Enum.Font.GothamBold;SpeedTitle.TextSize=14
+    SpeedTitle.TextXAlignment=Enum.TextXAlignment.Left;SpeedTitle.Parent=SpeedCard
+    local SpeedValue=Instance.new("TextLabel")
+    SpeedValue.Name="WalkSpeedValue";SpeedValue.Size=UDim2.fromOffset(86,24)
+    SpeedValue.Position=UDim2.new(1,-102,0,8);SpeedValue.BackgroundTransparency=1
+    SpeedValue.TextColor3=Theme.Accent2;SpeedValue.Font=Enum.Font.GothamBold;SpeedValue.TextSize=14
+    SpeedValue.TextXAlignment=Enum.TextXAlignment.Right;SpeedValue.Parent=SpeedCard
+    local SpeedTrack=Instance.new("TextButton")
+    SpeedTrack.Name="WalkSpeedTrack";SpeedTrack.Size=UDim2.new(1,-32,0,8)
+    SpeedTrack.Position=UDim2.fromOffset(16,50);SpeedTrack.BackgroundColor3=Theme.BgSecondary
+    SpeedTrack.BorderSizePixel=0;SpeedTrack.Text="";SpeedTrack.AutoButtonColor=false;SpeedTrack.Parent=SpeedCard
+    addCorner(SpeedTrack,4)
+    local SpeedFill=Instance.new("Frame")
+    SpeedFill.Name="WalkSpeedFill";SpeedFill.BackgroundColor3=Theme.Accent2
+    SpeedFill.BorderSizePixel=0;SpeedFill.Parent=SpeedTrack;addCorner(SpeedFill,4)
+    local SpeedKnob=Instance.new("Frame")
+    SpeedKnob.Name="WalkSpeedKnob";SpeedKnob.Size=UDim2.fromOffset(18,18)
+    SpeedKnob.BackgroundColor3=Color3.fromRGB(255,255,255);SpeedKnob.BorderSizePixel=0
+    SpeedKnob.Parent=SpeedTrack;addCorner(SpeedKnob,9);addStroke(SpeedKnob,Theme.Accent2,1,0.1)
+    for _,endpoint in ipairs({{text="1",right=false},{text="300",right=true}}) do
+        local mark=Instance.new("TextLabel")
+        mark.Name=endpoint.right and "WalkSpeedMax" or "WalkSpeedMin";mark.Size=UDim2.fromOffset(56,20)
+        mark.Position=endpoint.right and UDim2.new(1,-72,0,68) or UDim2.fromOffset(16,68)
+        mark.BackgroundTransparency=1;mark.Text=endpoint.text;mark.TextColor3=Theme.TextDim
+        mark.TextSize=12;mark.Font=Enum.Font.Gotham
+        mark.TextXAlignment=endpoint.right and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+        mark.Parent=SpeedCard
+    end
+    WalkSpeed.render=function()
+        local fraction=(WalkSpeed.Speed-1)/299
+        SpeedFill.Size=UDim2.new(fraction,0,1,0);SpeedKnob.Position=UDim2.new(fraction,-9,0.5,-9)
+        SpeedValue.Text=tostring(WalkSpeed.Speed)
+    end
+    WalkSpeed.render()
+    local draggingSpeed=false
+    local function setWalkSpeedFromX(screenX)
+        local width=SpeedTrack.AbsoluteSize.X
+        if width<=0 then return end
+        local fraction=math.clamp((screenX-SpeedTrack.AbsolutePosition.X)/width,0,1)
+        WalkSpeed.setSpeed(1+299*fraction)
+    end
+    connect(SpeedTrack.InputBegan,function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+            draggingSpeed=true;setWalkSpeedFromX(input.Position.X)
+        end
+    end)
+    connect(UserInputService.InputChanged,function(input)
+        if draggingSpeed and (input.UserInputType==Enum.UserInputType.MouseMovement or input.UserInputType==Enum.UserInputType.Touch) then
+            setWalkSpeedFromX(input.Position.X)
+        end
+    end)
+    connect(UserInputService.InputEnded,function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then draggingSpeed=false end
+    end)
+    local speedElapsed=0
+    connect(RunService.Heartbeat,function(dt)
+        if not WalkSpeed.Enabled or destroyed then return end
+        speedElapsed=speedElapsed+dt
+        if speedElapsed<0.2 then return end
+        speedElapsed=0;WalkSpeed.update()
+    end)
+    Stoppers.ManualSpeed=function() WalkSpeed.setEnabled(false) end
+
 end)
 
 local SmallGui = Instance.new("ScreenGui")
+SmallGui.AutoLocalize = false
 SmallGui.Name = "FlyToggle"
 SmallGui.ResetOnSpawn = false
 SmallGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
