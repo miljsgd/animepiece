@@ -94,7 +94,7 @@ local stopCombat = nil
 local Stoppers = {}
 local autoQuestEnabled = false
 local QuestRuntime = {
-    Farming = false, SkillBusy = false, Interacting = false,
+    Farming = false, SkillBusy = false, AutoSkillsEnabled = false, Interacting = false,
     WaitForFarmSelection = false, HasFarmSelection = false,
      
     QuestPriority = false, RepeatEnabled = false,
@@ -1543,7 +1543,7 @@ runSection("Runtime", function()
             SafeMode.key(Enum.KeyCode.Q, false)
             SafeMode.dashReleaseAt = nil
         end
-        if destroyed or not SafeMode.Enabled or not nav or not SafeMode.valid(nav)
+        if destroyed or not SafeMode.active() or not nav or not SafeMode.valid(nav)
             or SafeMode.inputPaused() then SafeMode.stopKeys(nav); return end
         SafeMode.tickRecovery(nav, now)
     end
@@ -1749,7 +1749,7 @@ runSection("Runtime", function()
     end
 
     function SafeMode.valid(nav)
-        return SafeMode.Enabled and not destroyed and SafeMode.nav == nav and not nav.cancelled
+        return SafeMode.active() and not destroyed and SafeMode.nav == nav and not nav.cancelled
             and nav.root.Parent ~= nil and nav.humanoid.Parent ~= nil and nav.humanoid.Health > 0
             and Motion.root == nav.root and Motion.owner == nav.owner
             and Motion.allowed(nav.owner) and os.clock() <= (Motion.lease or 0)
@@ -1762,6 +1762,7 @@ runSection("Runtime", function()
     end
 
     function SafeMode.otherIsland(nav, position, target, now)
+        if SafeMode.combatWalking then return nil end
         if now < (nav.nextIslandCheck or 0) then return nav.requiredIsland end
         nav.nextIslandCheck = now + 0.75
         nav.requiredIsland = nil
@@ -1929,7 +1930,7 @@ runSection("Runtime", function()
                 raycast = params, lastPosition = root.Position, progressAt = now, nextPathAt = 0, nextCommandAt = 0}
             SafeMode.nav = nav
         end
-        Motion.mode, QuestRuntime.AimTarget = "WALK", nil
+        Motion.mode = "WALK"
         if SafeMode.walkSpeed(humanoid) == 0 or humanoid.Sit or humanoid.PlatformStand or SafeMode.inputPaused() then
             nav.progressAt, nav.lastPosition = now, root.Position
             SafeMode.stopKeys(nav)
@@ -2054,11 +2055,16 @@ runSection("Runtime", function()
         if QuestRuntime.ReleaseAttack then QuestRuntime.ReleaseAttack() end
     end
 
+    function SafeMode.active()
+        return SafeMode.Enabled or SafeMode.combatWalking==true
+    end
+
     function Motion.release(owner)
         if owner and Motion.owner ~= owner then return end
         Landing.clear()
         SafeMode.clear()
         Motion.cancelLongTravel()
+        Motion.aimValidation = nil
         Motion.releaseAim()
         Motion.streamToken = (Motion.streamToken or 0) + 1
         if Motion.streamThread then pcall(task.cancel, Motion.streamThread); Motion.streamThread = nil end
@@ -2082,7 +2088,7 @@ runSection("Runtime", function()
         end
         Motion.owner, Motion.target, Motion.root, Motion.humanoid = nil, nil, nil, nil
         Motion.mode, Motion.aimPoint, Motion.savedAutoRotate = nil, nil, nil
-        Motion.arrived, Motion.walkRange, QuestRuntime.AimTarget = false, nil, nil
+        Motion.arrived, Motion.walkRange = false, nil
     end
 
     function Motion.allowed(owner)
@@ -2146,7 +2152,7 @@ runSection("Runtime", function()
     end
 
     function Motion.pivotDirect(character, root, destination, islandPoint)
-        if SafeMode.Enabled and not Motion.isQuestCoordinate(destination, root) and (not SafeMode.isTravelPoint(islandPoint)
+        if SafeMode.active() and not Motion.isQuestCoordinate(destination, root) and (not SafeMode.isTravelPoint(islandPoint)
             or (destination.Position - islandPoint.position).Magnitude > 0.05) then return false end
         if not character or not character.Parent or not root or not root.Parent then return false end
         local origin = root.Position
@@ -2166,7 +2172,7 @@ runSection("Runtime", function()
      
     function Motion.pivot(character, root, destination)
         local coordinateQuest = Motion.isQuestCoordinate(destination, root)
-        if SafeMode.Enabled and not coordinateQuest then return false end
+        if SafeMode.active() and not coordinateQuest then return false end
         if destroyed or typeof(destination) ~= "CFrame" or not root or not root.Parent then return false end
         local previous = Motion.longTravel
         if previous and not previous.cancelled then
@@ -2318,7 +2324,7 @@ runSection("Runtime", function()
     end
 
     function Motion.fly(root, humanoid)
-        if SafeMode.Enabled then return end
+        if SafeMode.active() then return end
         if Motion.velocity and Motion.velocity.Parent == root then return end
         Motion.savedAutoRotate = humanoid.AutoRotate
         humanoid.AutoRotate = false
@@ -2361,7 +2367,7 @@ runSection("Runtime", function()
         local height = Motion.kind == "mob" and (farm and 0 or 1.5) or (Motion.kind == "giver" and 0 or 1)
         local destination = targetPosition + Motion.direction * Motion.spacing + Vector3.new(0, height, 0)
         if Motion.kind == "point" then destination = targetPosition end
-        if SafeMode.Enabled and not Motion.isQuestCoordinate() then
+        if SafeMode.active() and not Motion.isQuestCoordinate() then
             if Motion.kind == "mob" then destination = targetPosition + Motion.direction * Motion.spacing end
             SafeMode.step(character, root, humanoid, targetPosition, destination, now)
             return
@@ -2397,7 +2403,6 @@ runSection("Runtime", function()
             Motion.lastTeleportAt = now
             Motion.pivot(character, root, CFrame.lookAt(destination, top, Motion.direction))
             Motion.arrived = (destination - root.Position).Magnitude <= 0.25
-            QuestRuntime.AimTarget = target
             return
         end
 
@@ -2421,7 +2426,6 @@ runSection("Runtime", function()
                 local pose = Motion.isQuestCoordinate() and CFrame.new(destination) or CFrame.lookAt(destination, targetPosition)
                 Motion.pivot(character, root, pose)
             end
-            QuestRuntime.AimTarget = nil
             return
         end
 
@@ -2433,7 +2437,6 @@ runSection("Runtime", function()
                 Motion.lastTeleportAt = now
                 Motion.pivot(character, root, CFrame.lookAt(destination, targetPosition))
             end
-            QuestRuntime.AimTarget = target
             return
         end
 
@@ -2468,7 +2471,6 @@ runSection("Runtime", function()
         Motion.velocity.VectorVelocity = distance > 0.35 and offset.Unit * speed or zero
         local facing = Vector3.new(targetPosition.X, root.Position.Y, targetPosition.Z)
         if (facing - root.Position).Magnitude > 0.05 then root.CFrame = CFrame.lookAt(root.Position, facing) end
-        QuestRuntime.AimTarget = Motion.owner == "Quest" and Motion.kind == "mob" and target or nil
     end
 
     function Motion.lockFarmView(camera, part, root)
@@ -2491,41 +2493,90 @@ runSection("Runtime", function()
         camera.Focus = CFrame.new(part.Position)
     end
 
-    function Motion.aim()
-        Motion.aimPoint = nil
-        if SafeMode.Enabled then Motion.releaseAim(); return end
-        local target = QuestRuntime.AimTarget
-        local farm = QuestRuntime.AutoFarmEnabled == true and Motion.owner == "Farm" and Motion.kind == "mob"
-        local quest = autoQuestEnabled and Motion.owner == "Quest" and Motion.kind == "mob"
-        if destroyed or not (farm or quest) or not target or target ~= Motion.target
-            or not Motion.allowed(Motion.owner) or os.clock() > (Motion.lease or 0)
-            or not World.liveMob(target) or QuestRuntime.Interacting or QuestRuntime.AcceptanceMoving
-            or QuestRuntime.FruitBuying or QuestRuntime.ItemBusy then
+    -- All Auto Farm modes (regular mobs, mini bosses, summon bosses and world bosses)
+    -- aim at the current validated Farm target, independent of Auto Skills.
+    -- No new world scan is performed: only the target already owned by Motion is used.
+    function Motion.aimSelectedMob(target)
+        local now = os.clock()
+        if destroyed or Motion.owner ~= "Farm" or Motion.kind ~= "mob"
+            or Motion.target ~= target or not Motion.allowed("Farm")
+            or now > (Motion.lease or 0) or not World.liveMob(target)
+            or QuestRuntime.Interacting or QuestRuntime.AcceptanceMoving
+            or QuestRuntime.FruitBuying or QuestRuntime.ItemBusy
+            or UserInputService:GetFocusedTextBox() then
             Motion.releaseAim()
+            return false
+        end
+
+        -- The regular farm validator is cached by World; special boss targets
+        -- are additionally validated against the boss mode that selected them.
+        -- Keep a short aim cache to avoid repeatedly scanning boss descendants.
+        local check = Motion.aimValidation
+        if not check or check.target ~= target or now >= check.expires then
+            local valid = isValidFarmMob(target)
+                or (World.confirmCombatTarget and World.confirmCombatTarget(target))
+            check = {target = target, valid = valid == true, expires = now + 0.4}
+            Motion.aimValidation = check
+        end
+        if not check.valid then
+            Motion.releaseAim()
+            return false
+        end
+
+        local _, root = Motion.character()
+        local camera = workspace.CurrentCamera
+        local head = target:FindFirstChild("Head")
+        local part = head and head:IsA("BasePart") and head or getMobRoot(target)
+        if not root or root ~= Motion.root or not camera or not part then
+            Motion.releaseAim()
+            return false
+        end
+
+        if Motion.farmView and Motion.farmView.camera ~= camera then
+            Motion.releaseAim()
+        end
+        -- Preserve the player's regular camera while the mob is visible;
+        -- only turn it to the mob when it moves outside the screen.
+        if Motion.farmView then Motion.lockFarmView(camera, part, root) end
+        local point, visible = camera:WorldToScreenPoint(part.Position)
+        if not visible or point.Z <= 0 then
+            Motion.lockFarmView(camera, part, root)
+            point, visible = camera:WorldToScreenPoint(part.Position)
+        end
+        if not visible or point.Z <= 0 then
+            Motion.releaseAim()
+            return false
+        end
+
+        Motion.aimPoint = Vector2.new(point.X, point.Y)
+        local moved = VirtualInputManager and pcall(function()
+            VirtualInputManager:SendMouseMoveEvent(point.X, point.Y, game)
+        end)
+        if moved ~= true then
+            Motion.releaseAim()
+            return false
+        end
+        return true
+    end
+
+    function Motion.aim()
+        local now = os.clock()
+        local target = Motion.target
+        if destroyed or Motion.owner ~= "Farm" or Motion.kind ~= "mob"
+            or not target or now > (Motion.lease or 0) then
+            Motion.aimValidation = nil
+            if Motion.aimPoint or Motion.farmView then Motion.releaseAim() end
             return
         end
-        local _, root = Motion.character()
-        local camera, part = workspace.CurrentCamera, getMobRoot(target)
-        if not camera or not part or not root or root ~= Motion.root then Motion.releaseAim(); return end
-        if farm then Motion.lockFarmView(camera, part, root) else Motion.releaseAim() end
-        local point, visible = camera:WorldToViewportPoint(part.Position)
-        if not farm and (not visible or point.Z <= 0 or Motion.mouseUnavailable) then
-            camera.CFrame = CFrame.lookAt(camera.CFrame.Position, part.Position)
-            point, visible = camera:WorldToViewportPoint(part.Position)
-        end
-        if visible and point.Z > 0 then
-            Motion.aimPoint = Vector2.new(point.X, point.Y)
-            if not farm and not Motion.mouseUnavailable then
-                local ok = pcall(function() VirtualInputManager:SendMouseMoveEvent(point.X, point.Y, game) end)
-                Motion.mouseUnavailable = not ok
-            end
-        end
+        if now < (Motion.nextFarmAimAt or 0) then return end
+        Motion.nextFarmAimAt = now + 1 / 30
+        Motion.aimSelectedMob(target)
     end
 
     local elapsed, lastError = 0, -math.huge
     connect(RunService.Heartbeat, function(dt)
         elapsed = elapsed + dt
-        local interval = SafeMode.Enabled and 0.1 or ((Motion.owner == "Farm" or Motion.owner == "Swords") and Motion.kind == "mob" and Motion.farmTeleportInterval or 1 / 30)
+        local interval = SafeMode.active() and 0.1 or ((Motion.owner == "Farm" or Motion.owner == "Swords") and Motion.kind == "mob" and Motion.farmTeleportInterval or 1 / 30)
         if elapsed + 0.000001 < interval then return end
         local step = math.min(elapsed, 0.15)
         elapsed = elapsed % interval
@@ -2577,6 +2628,8 @@ Graphics = {
 -- Farm modes share targeting, attack/skill and distance behavior.
 runSection("FarmModes", function()
     local F=FarmMode
+    local A={Enabled=false,arrivalRadius=15}
+    F.AntiKick=A
     F.selected,F.flySpeed,F.generation="Tp Farm",400,0
     F.options={"Safe Farm","Fly Farm","Tp Farm"}
     F.valid={['Safe Farm']=true,['Fly Farm']=true,['Tp Farm']=true}
@@ -2591,7 +2644,7 @@ runSection("FarmModes", function()
     function F.effective() return F.selected end
     function F.isFly() return F.effective()=="Fly Farm" end
     function F.save()
-        local data={selected=F.selected}
+        local data={selected=F.selected,antiKick=A.Enabled}
         F.environment[F.key]=data
         local writer=F.environment.writefile or writefile
         if http and type(writer)=="function" then
@@ -2609,8 +2662,9 @@ runSection("FarmModes", function()
                 if decoded and type(value)=="table" then data=value end
             end
         end
-        if type(data)=="table" and F.valid[data.selected] then
-            F.selected=data.selected
+        if type(data)=="table" then
+            if F.valid[data.selected] then F.selected=data.selected end
+            if type(data.antiKick)=="boolean" then A.Enabled=data.antiKick end
         end
     end
     function F.clearFlight()
@@ -2632,12 +2686,14 @@ runSection("FarmModes", function()
     local release=Motion.release
     function Motion.release(owner)
         if owner and Motion.owner~=owner then return end
+        A.clearActive()
         F.clearFlight()
         release(owner)
     end
     function F.apply()
         local mode=F.effective()
         if F.current~=mode then
+            A.reset()
             F.current,F.generation=mode,F.generation+1
             if SafeMode.Enabled~=(mode=="Safe Farm") then SafeMode.setEnabled(mode=="Safe Farm")
             else Motion.release() end
@@ -2673,8 +2729,69 @@ runSection("FarmModes", function()
         human:Move(Vector3.new(0,0,0),false)
         if human:GetState()~=Enum.HumanoidStateType.Physics then human:ChangeState(Enum.HumanoidStateType.Physics) end
     end
+    -- Hybrid combat changes only Tp/Fly farm mob movement after arrival.
+    function A.clearActive()
+        SafeMode.combatWalking=false
+    end
+    function A.reset()
+        A.clearActive()
+        A.target,A.root,A.owner=nil,nil,nil
+    end
+    function A.setEnabled(value)
+        value=value==true
+        if A.Enabled==value then return end
+        A.Enabled=value
+        A.reset()
+        if Motion.kind=="mob" and (Motion.owner=="Farm" or Motion.owner=="Swords") then
+            Motion.release(Motion.owner)
+        end
+        F.save()
+    end
+    function A.prepareWalk()
+        if not A.Enabled or F.effective()=="Safe Farm" or destroyed then
+            if A.target or SafeMode.combatWalking then A.reset() end
+            return false
+        end
+        local owner,target=Motion.owner,Motion.target
+        if (owner~="Farm" and owner~="Swords") or Motion.kind~="mob" then
+            if A.target and not World.liveMob(A.target) then A.reset() end
+            A.clearActive();return false
+        end
+        local character,root,human=Motion.character()
+        if A.target and (not World.liveMob(A.target) or A.root~=root) then A.reset() end
+        if not character or not root or not human or human.Health<=0 or root~=Motion.root
+            or World.characterUnavailable or not Motion.allowed(owner) or os.clock()>(Motion.lease or 0)
+            or QuestRuntime.Interacting or QuestRuntime.AcceptanceMoving
+            or QuestRuntime.FruitBuying or QuestRuntime.ItemBusy then
+            Motion.release(owner);return false,true
+        end
+        if not World.liveMob(target) or not ((isValidFarmMob and isValidFarmMob(target))
+            or (World.confirmCombatTarget and World.confirmCombatTarget(target))) then
+            A.reset();Motion.release(owner);return false,true
+        end
+        if A.target and (A.target~=target or A.owner~=owner) then A.reset() end
+        local part=World.root(target)
+        if not part then A.reset();Motion.release(owner);return false,true end
+        if A.target~=target then
+            if (root.Position-part.Position).Magnitude>A.arrivalRadius then return false end
+            -- Release flight/noclip, prone rotation, stream jobs and the farm camera.
+            -- Reclaim the same target without moving the character's position.
+            local spacing=Motion.spacing
+            Motion.release(owner)
+            if not Motion.request(owner,target,spacing,"mob") then return false end
+            A.target,A.root,A.owner=target,root,owner
+        end
+        -- Remain on foot for this living target even if it moves farther away.
+        -- The latch survives a movement lease/path retry and clears for a new mob.
+        SafeMode.combatWalking=true
+        return true
+    end
+
     local normalStep=Motion.step
     function Motion.step(dt)
+        local walking,paused=A.prepareWalk()
+        if paused then return end
+        if walking then return normalStep(dt) end
         local chest=Motion.owner=="Items" and Motion.kind=="chest" and not SafeMode.Enabled
         local controlled=Motion.owner=="Farm" or Motion.owner=="Swords"
         if not chest and (not F.isFly() or not controlled) then
@@ -2728,7 +2845,6 @@ runSection("FarmModes", function()
             root.CFrame=CFrame.lookAt(root.Position,root.Position+(F.heading or Vector3.new(0,0,-1)))
         end
         Motion.mode,Motion.arrived=chest and "CHEST_FLY" or "FLY_FARM",distance<=(farm and 0.25 or 1.25)
-        QuestRuntime.AimTarget=farm and target or nil
     end
     function F.travel(owner,destination,face,valid,tolerance)
         local _,start=Motion.character()
@@ -2746,7 +2862,7 @@ runSection("FarmModes", function()
         return false
     end
     F.load();F.apply();F.save()
-    Stoppers.FarmModes=function() F.generation=F.generation+1;if F.flight then Motion.release() end;F.clearFlight() end
+    Stoppers.FarmModes=function() A.reset();F.generation=F.generation+1;if F.flight then Motion.release() end;F.clearFlight() end
 end)
 
 
@@ -3647,14 +3763,6 @@ runSection("Combat", function()
         end
         if not position then return false end
 
-        if autoQuestEnabled and not screenPunch then
-            position = Motion.aimPoint
-            if not position or not QuestRuntime.AimTarget or not World.liveMob(QuestRuntime.AimTarget) then return false end
-            if ScreenGui.Enabled then
-                local p, size = Main.AbsolutePosition, Main.AbsoluteSize
-                if position.X >= p.X and position.X <= p.X + size.X and position.Y >= p.Y and position.Y <= p.Y + size.Y then return false end
-            end
-        end
         lastAutoAttackClickPosition = position
         local clicked = false
         if CombatCfg.ClickVIM then
@@ -3801,13 +3909,15 @@ runSection("Combat", function()
         return target
     end
 
+    World.selectedSkillTarget=combatSkillTarget
     local nextSkillIndex = 1
     local function combatEnsureSkillThread()
         if CombatCfg.SkillThread then return end
         local threadHandle
         threadHandle = task.spawn(function()
             while CombatCfg.AutoSkillEnabled and not destroyed do
-                if os.clock() >= CombatCfg.SkillNextAt and combatSkillTarget() then
+                local target=os.clock()>=CombatCfg.SkillNextAt and combatSkillTarget()
+                if target then
                     local skill
                     for offset = 0, #SKILL_KEYS - 1 do
                         local index = (nextSkillIndex + offset - 1) % #SKILL_KEYS + 1
@@ -3821,7 +3931,11 @@ runSection("Combat", function()
                         CombatCfg.SkillBusy, QuestRuntime.SkillBusy = true, true
                         combatReleaseAutoAttackInputs()
                         CombatCfg.SkillNextAt = os.clock() + CombatCfg.SkillInterval
-                        combatPressKey(skill.Code)
+                        -- Auto Skills only presses the selected skills. Cursor aim is
+                        -- managed exclusively by the Auto Farm target controller.
+                        if CombatCfg.AutoSkillEnabled and combatSkillTarget() == target then
+                            combatPressKey(skill.Code)
+                        end
                         task.wait(CombatCfg.SkillKeyGap)
                     end
                 end
@@ -3839,7 +3953,9 @@ runSection("Combat", function()
 
     local function combatToggleAutoSkill(state)
         CombatCfg.AutoSkillEnabled = state == true
+        QuestRuntime.AutoSkillsEnabled = CombatCfg.AutoSkillEnabled
         if not CombatCfg.AutoSkillEnabled then
+            -- Do not touch the farm cursor: Auto Skills has no aim control.
             combatCancelThread(CombatCfg.SkillThread)
             CombatCfg.SkillThread = nil
             CombatCfg.SkillBusy = false
@@ -3851,6 +3967,7 @@ runSection("Combat", function()
     end
 
     stopCombat = function()
+        QuestRuntime.AutoSkillsEnabled = false
         CombatCfg.AutoAttackEnabled = false
         CombatCfg.AutoSkillEnabled = false
         CombatCfg.AutoEquipEnabled = false
@@ -14054,6 +14171,8 @@ runSection("Config", function()
     setAntiAfk(true)
     Stoppers.AntiAfk = stopAntiAfk
     createCombatToggle(ConfigPage, "FPSBoostToggleCard", "FPS Boost", 6, Graphics.setEnabled)
+    local setAntiKick=createCombatToggle(ConfigPage,"AntiKickToggleCard","Anti Kick",5,FarmMode.AntiKick.setEnabled)
+    setAntiKick(FarmMode.AntiKick.Enabled)
     local modeCard=createStyledCard(ConfigPage,"FarmModeSelectionCard",58,4)
     local modeHeader=Instance.new("TextButton")
     modeHeader.Name="SelectFarmMode";modeHeader.Size=UDim2.new(1,0,0,58)
