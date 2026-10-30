@@ -474,12 +474,13 @@ runSection("Navigation", function()
     Sidebar.Name = "Sidebar"
     Sidebar.Size = UDim2.new(0, SIDEBAR_W, 1, -HEADER_H - 24)
     Sidebar.Position = UDim2.new(0, 16, 0, HEADER_H + 12)
-    Sidebar.BackgroundColor3 = Theme.BgSecondary
+    Sidebar.BackgroundColor3 = Theme.Bg
+    Sidebar.BackgroundTransparency = 1 -- Exibe exatamente o mesmo fundo (e gradiente) da UI principal
     Sidebar.BorderSizePixel = 0
     Sidebar.ZIndex = 2
     Sidebar.Parent = Main
     addCorner(Sidebar, 12)
-    addStroke(Sidebar, Theme.Stroke, 1, 0.5)
+    -- removed sidebar gray outline to match requested clean look
 
     local SidebarLayout = Instance.new("UIListLayout")
     SidebarLayout.Padding = UDim.new(0, 8)
@@ -551,7 +552,7 @@ runSection("Navigation", function()
         local button = Instance.new("TextButton")
         button.Name = "Tab_" .. id
         button.Size = UDim2.new(1, 0, 0, 40)
-        button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
         button.BackgroundTransparency = id == "Home" and 0 or 1
         button.BorderSizePixel = 0
         button.Text = ""
@@ -560,7 +561,6 @@ runSection("Navigation", function()
         button.ZIndex = 3
         button.Parent = Sidebar
         addCorner(button, 8)
-        addGradient(button, Theme.Accent1, Theme.Accent2, 0)
 
         local label = Instance.new("TextLabel")
         label.Name = "TabLabel"
@@ -568,7 +568,7 @@ runSection("Navigation", function()
         label.Position = UDim2.new(0, 12, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = id == "AutoQuest" and "Auto Quest" or (id == "AutoFarm" and "Auto Farm" or (id == "AutoItems" and "Auto Items" or (id == "AutoStats" and "Auto Stats" or (id == "Config" and "Settings" or id))))
-        label.TextColor3 = id == "Home" and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
+        label.TextColor3 = Color3.fromRGB(255, 255, 255)
         label.Font = Enum.Font.GothamBold
         label.TextSize = 13
         label.TextXAlignment = Enum.TextXAlignment.Left
@@ -585,7 +585,7 @@ runSection("Navigation", function()
         indicator.ZIndex = 5
         indicator.Parent = button
         addCorner(indicator, 2)
-        local stroke = addStroke(button, Color3.fromRGB(42, 120, 255), 1, id == "Home" and 0.28 or 1)
+        local stroke = addStroke(button, Color3.fromRGB(42, 120, 255), 1, 1)
         return {button = button, label = label, indicator = indicator, stroke = stroke}
     end
 
@@ -612,9 +612,9 @@ runSection("Navigation", function()
             local active = tabName == name
             info.button.BackgroundTransparency = active and 0 or 1
             info.indicator.Visible = active
-            info.stroke.Transparency = active and 0.28 or 1
+            info.stroke.Transparency = 1
             info.label.TextTransparency = 0
-            info.label.TextColor3 = active and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
+            info.label.TextColor3 = Color3.fromRGB(255, 255, 255)
         end
     end
     for name, info in pairs(Tabs) do
@@ -622,7 +622,7 @@ runSection("Navigation", function()
         local tabInfo = info
         connect(tabInfo.button.MouseButton1Click, function() setActivePage(tabName) end)
         connect(tabInfo.button.MouseEnter, function()
-            if currentPage ~= tabName then tween(tabInfo.button, {BackgroundTransparency = 0.45}, 0.12) end
+            if currentPage ~= tabName then tween(tabInfo.button, {BackgroundTransparency = 0.55}, 0.12) end
         end)
         connect(tabInfo.button.MouseLeave, function()
             if currentPage ~= tabName then tween(tabInfo.button, {BackgroundTransparency = 1}, 0.12) end
