@@ -1,7 +1,7 @@
--- RANDOM HUB | ANIME PIECE v1.33 | self-contained Lua file
+-- RANDOM HUB | ANIME PIECE v1.34 | self-contained Lua file
 -- The source is included for queued auto-execution after supported teleports.
 local __source = [=====[
--- RANDOM HUB | ANIME PIECE V1.33
+-- RANDOM HUB | ANIME PIECE V1.34
  
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -65,7 +65,7 @@ for _, name in ipairs({"FlyUI", "FlyToggle"}) do
 end
 
 local CONFIG = {
-    Version = "1.33",
+    Version = "1.34",
     UISize = UDim2.fromOffset(600, 460),
     UIOffset = UDim2.new(0.5, -300, 0.5, -230),
     UIScale = 1,
@@ -104,14 +104,16 @@ local QuestRuntime = {
     RepeatCompletionPending = false, RepeatAtQuestNpc = false,
     RepeatArmAt = 0,
 }
-local farmDistance = 1.0
+-- All mob-farming modes fight at a fixed 6-stud horizontal distance.
+local FARM_MOB_DISTANCE = 6
+local farmDistance = FARM_MOB_DISTANCE
 
 
--- V1.33 | Persist all registered settings. One debounced write on actual UI interaction.
+-- V1.34 | Persist all registered settings. One debounced write on actual UI interaction.
 local HttpService = game:GetService("HttpService")
 local Persistent = {
     path = "RandomHub_AnimePiece_Settings_" .. tostring(LocalPlayer.UserId) .. "_" .. tostring(game.GameId) .. ".json",
-    sourcePath = "RandomHub_AnimePiece_v1.33_Source.lua",
+    sourcePath = "RandomHub_AnimePiece_v1.34_Source.lua",
     entries = {}, saved = {}, restoring = true,
     autoSave = true, autoRejoin = false, autoExecute = false,
     queued = false, lastWritten = nil, dirty = false, generation = 0,
@@ -128,7 +130,7 @@ do
     end
     Persistent.readFile = api("readfile")
     Persistent.writeFile = api("writefile")
-    Persistent.source = env and env.__RHAnimePieceV133Source or _G.__RHAnimePieceV133Source
+    Persistent.source = env and env.__RHAnimePieceV134Source or _G.__RHAnimePieceV134Source
     local previous = env.__RHAnimePieceSettings
     if type(previous) == "table" then Persistent.saved = previous end
     if Persistent.readFile then
@@ -140,6 +142,11 @@ do
             end
         end
     end
+    -- Drop obsolete Kill Aura settings from previous v1.34 save files.
+    Persistent.saved["CombatKillAuraToggleCard"] = nil
+    Persistent.saved["KillAuraRadius"] = nil
+    Persistent.saved["CombatKillAuraRadiusCard"] = nil
+    Persistent.saved["AntiKickToggleCard"] = nil -- Do not restore the deleted control
     env.__RHAnimePieceSettings = Persistent.saved
     local stored = Persistent.saved
     if type(stored["AutoSaveSettingsToggleCard"]) == "boolean" then
@@ -250,7 +257,7 @@ if type(readfile)=="function" then
     end)
 end
 if shouldRun and type(loadstring)=="function" and type(source)=="string" then
-    env.__RHAnimePieceV133Source=source
+    env.__RHAnimePieceV134Source=source
     local runner=loadstring(source)
     if runner then runner() end
 end
@@ -792,7 +799,7 @@ runSection("Home", function()
     local HomePage = Pages.Home
      
     local UpdateCard = Instance.new("Frame")
-    UpdateCard.Name = "UpdateV133Card"
+    UpdateCard.Name = "UpdateV134Card"
     UpdateCard.Size = UDim2.new(1, 0, 0, 270)
     UpdateCard.Position = UDim2.fromOffset(0, 68)
     UpdateCard.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -817,13 +824,12 @@ runSection("Home", function()
         return label
     end
 
-    updateLabel("UpdateTitle", "Version v1.33", 14, 28, Enum.Font.GothamBold, 19, Theme.Text)
+    updateLabel("UpdateTitle", "Version v1.34", 14, 28, Enum.Font.GothamBold, 19, Theme.Text)
      
      
     local features = {
-        "Add Auto Rejoin",
-        "Add Auto Execute",
-        "Add Auto Save Settings",
+        "Improved Auto Farm",
+        "Improved Auto Collect Chest",
     }
     for index, feature in ipairs(features) do
         updateLabel("Feature" .. index, "+ " .. feature, 61 + (index - 1) * 27, 23, Enum.Font.Gotham, 14, Theme.Accent2)
@@ -2271,6 +2277,9 @@ runSection("Runtime", function()
             Motion.streamToken = (Motion.streamToken or 0) + 1
             Motion.streamPending, Motion.streamReady, Motion.streamPosition = false, not workspace.StreamingEnabled, nil
         end
+        -- Quest givers/items keep their original spacing; every MOB-farming owner
+        -- gets the same distance, including Farm, Quest and Swords/boss modes.
+        if kind == "mob" then spacing = FARM_MOB_DISTANCE end
         Motion.spacing, Motion.destination, Motion.lease = spacing or 0, destination, os.clock() + 1.5
         return true
     end
@@ -2290,7 +2299,8 @@ runSection("Runtime", function()
     end
 
     function Motion.pivotDirect(character, root, destination, islandPoint)
-        if SafeMode.active() and not Motion.isQuestCoordinate(destination, root) and (not SafeMode.isTravelPoint(islandPoint)
+        local chestTeleport = autoChestEnabled and Motion.owner == "Items" and Motion.kind == "chest"
+        if SafeMode.active() and not chestTeleport and not Motion.isQuestCoordinate(destination, root) and (not SafeMode.isTravelPoint(islandPoint)
             or (destination.Position - islandPoint.position).Magnitude > 0.05) then return false end
         if not character or not character.Parent or not root or not root.Parent then return false end
         local origin = root.Position
@@ -2310,7 +2320,8 @@ runSection("Runtime", function()
      
     function Motion.pivot(character, root, destination)
         local coordinateQuest = Motion.isQuestCoordinate(destination, root)
-        if SafeMode.active() and not coordinateQuest then return false end
+        local chestTeleport = autoChestEnabled and Motion.owner == "Items" and Motion.kind == "chest"
+        if SafeMode.active() and not coordinateQuest and not chestTeleport then return false end
         if destroyed or typeof(destination) ~= "CFrame" or not root or not root.Parent then return false end
         local previous = Motion.longTravel
         if previous and not previous.cancelled then
@@ -2501,7 +2512,7 @@ runSection("Runtime", function()
             Motion.direction = flat.Magnitude > 0.1 and flat.Unit or Vector3.new(0, 0, 1)
         end
         local farm = (Motion.owner == "Farm" or Motion.owner == "Swords") and Motion.kind == "mob"
-        if farm then Motion.spacing = math.clamp(tonumber(farmDistance) or 1, 1, 10) end
+        if farm then Motion.spacing = FARM_MOB_DISTANCE end
         local height = Motion.kind == "mob" and (farm and 0 or 1.5) or (Motion.kind == "giver" and 0 or 1)
         local destination = targetPosition + Motion.direction * Motion.spacing + Vector3.new(0, height, 0)
         if Motion.kind == "point" then destination = targetPosition end
@@ -2530,17 +2541,30 @@ runSection("Runtime", function()
         end
 
         if farm then
-            local head = target:FindFirstChild("Head")
-            local anchor = head and head:IsA("BasePart") and head or part
-            local top = anchor.Position + Vector3.new(0, anchor.Size.Y * 0.5, 0)
-            destination = top + Vector3.new(0, Motion.spacing, 0)
+            -- TP Farm keeps its teleport travel, 6 studs to the SIDE of the mob.
+            -- Cache floor queries; the farm's physics tick can be very frequent.
+            local sideways = targetPosition + Motion.direction * FARM_MOB_DISTANCE
+            local floorCache = Motion.farmGround
+            if not floorCache or floorCache.target ~= target
+                or (sideways - floorCache.point).Magnitude > 2
+                or now - floorCache.at > 0.35 then
+                local hit = workspace:Raycast(sideways + Vector3.new(0, 55, 0),
+                    Vector3.new(0, -175, 0), Landing.parameters(character))
+                local y = (hit and hit.Material ~= Enum.Material.Water and hit.Normal.Y > 0.55)
+                    and (hit.Position.Y + Landing.height(character, root, humanoid) + 0.2)
+                    or targetPosition.Y
+                floorCache = {target=target,point=sideways,y=y,at=now}
+                Motion.farmGround = floorCache
+            end
+            destination = Vector3.new(sideways.X, floorCache.y, sideways.Z)
             if delta.Magnitude > 180 then Motion.prepareStream(targetPosition) end
             if Motion.savedAutoRotate == nil then Motion.savedAutoRotate = humanoid.AutoRotate end
             humanoid.AutoRotate = false
             Motion.mode = "TELEPORT"
             Motion.lastTeleportAt = now
-            Motion.pivot(character, root, CFrame.lookAt(destination, top, Motion.direction))
-            Motion.arrived = (destination - root.Position).Magnitude <= 0.25
+            local look = Vector3.new(targetPosition.X, destination.Y, targetPosition.Z)
+            Motion.pivot(character, root, CFrame.lookAt(destination, look))
+            Motion.arrived = (destination - root.Position).Magnitude <= 0.3
             return
         end
 
@@ -2656,7 +2680,7 @@ Graphics = {
 -- Farm modes share targeting, attack/skill and distance behavior.
 runSection("FarmModes", function()
     local F=FarmMode
-    local A={Enabled=false,arrivalRadius=15}
+    local A={Enabled=false,arrivalRadius=20}
     F.AntiKick=A
     F.selected,F.flySpeed,F.generation="Tp Farm",400,0
     F.options={"Safe Farm","Fly Farm","Tp Farm"}
@@ -2672,7 +2696,7 @@ runSection("FarmModes", function()
     function F.effective() return F.selected end
     function F.isFly() return F.effective()=="Fly Farm" end
     function F.save()
-        local data={selected=F.selected,antiKick=A.Enabled}
+        local data={selected=F.selected}
         F.environment[F.key]=data
         local writer=F.environment.writefile or writefile
         if http and type(writer)=="function" then
@@ -2692,7 +2716,6 @@ runSection("FarmModes", function()
         end
         if type(data)=="table" then
             if F.valid[data.selected] then F.selected=data.selected end
-            if type(data.antiKick)=="boolean" then A.Enabled=data.antiKick end
         end
     end
     function F.clearFlight()
@@ -2820,6 +2843,10 @@ runSection("FarmModes", function()
         local walking,paused=A.prepareWalk()
         if paused then return end
         if walking then return normalStep(dt) end
+        if autoChestEnabled and Motion.owner=="Items" and Motion.kind=="chest" then
+            if F.flight then F.clearFlight() end
+            return -- Auto Collect Chest teleports through Items.fastChestTick.
+        end
         local chest=Motion.owner=="Items" and Motion.kind=="chest" and not SafeMode.Enabled
         local controlled=Motion.owner=="Farm" or Motion.owner=="Swords"
         if not chest and (not F.isFly() or not controlled) then
@@ -2844,11 +2871,10 @@ runSection("FarmModes", function()
         end
         local destination,face=point,point
         if farm then
-            Motion.spacing=math.clamp(tonumber(farmDistance) or 1,1,10)
-            local head=target:FindFirstChild("Head")
-            local anchor=head and head:IsA("BasePart") and head or part
-            face=anchor.Position+Vector3.new(0,anchor.Size.Y*0.5,0)
-            destination=face+Vector3.new(0,Motion.spacing,0)
+            Motion.spacing=FARM_MOB_DISTANCE
+            face=point
+            local side=point+Motion.direction*FARM_MOB_DISTANCE
+            destination=Vector3.new(side.X,point.Y,side.Z)
         elseif Motion.kind~="point" then
             local height=chest and ((Motion.spacing or 0)>0 and 1.15 or 0.25)
                 or Motion.kind=="item" and 1 or Motion.kind=="giver" and 0 or 1
@@ -3826,7 +3852,9 @@ runSection("Combat", function()
 
      
      
-    local ATTACK_MOB_RANGE = 10
+    -- Keep attack detection slightly larger than the 6-stud approach radius.
+    -- This is target detection only; it does not increase server damage reach.
+    local ATTACK_MOB_RANGE = 16
     local attackNearbyMob = nil
     local attackNextScanAt = 0
 
@@ -3886,7 +3914,8 @@ runSection("Combat", function()
         threadHandle = task.spawn(function()
             while CombatCfg.AutoAttackEnabled and attackToken == token and not destroyed do
                  
-                if QuestRuntime.Interacting or QuestRuntime.AcceptanceMoving or QuestRuntime.FruitBuying or QuestRuntime.ItemBusy or CombatCfg.SkillBusy then
+                if QuestRuntime.Interacting or QuestRuntime.AcceptanceMoving
+                    or QuestRuntime.FruitBuying or QuestRuntime.ItemBusy or CombatCfg.SkillBusy then
                     combatReleaseAutoAttackInputs()
                     task.wait(0.15)
                 else
@@ -3931,8 +3960,8 @@ runSection("Combat", function()
         if not part then return nil end
         -- Include the configured above-mob offset, but do not cast across the map
         -- while Fly/Safe Farm is still approaching its target.
-        local spacing = math.clamp(tonumber(Motion.spacing) or 1, 1, 10)
-        local range = math.max(12, spacing + part.Size.Y * 0.5 + 6)
+        local spacing = math.max(FARM_MOB_DISTANCE, tonumber(Motion.spacing) or 0)
+        local range = math.max(16, spacing + part.Size.Y * 0.5 + 6)
         if (root.Position - part.Position).Magnitude > range then return nil end
         return target
     end
@@ -4537,7 +4566,7 @@ runSection("AutoChest", function()
     AutoChestDescription.Size = UDim2.new(1, -100, 0, 18)
     AutoChestDescription.Position = UDim2.fromOffset(16, 31)
     AutoChestDescription.BackgroundTransparency = 1
-    AutoChestDescription.Text = "Fly to chests at 250 speed; walk with Safe Farm"
+    AutoChestDescription.Text = "Teleport to chests; die and respawn after 4 confirmed pickups"
     AutoChestDescription.Visible = false
     AutoChestDescription.TextColor3 = Theme.TextDim
     AutoChestDescription.Font = Enum.Font.Gotham
@@ -4594,6 +4623,10 @@ runSection("AutoChest", function()
         fastChestPhase = nil,
         fastChestHoldUntil = nil,
         fastChestFound = false,
+        -- One cycle is four confirmed pickups, then the character dies and respawns.
+        chestCount = 0, awaitingRespawn = false, respawnCharacter = nil,
+        chestConfirmed = setmetatable({}, {__mode = "k"}),
+        lastChestTeleportAt = -math.huge,
     }
 
     function Items.info(object, kind)
@@ -5177,17 +5210,52 @@ runSection("AutoChest", function()
      
      
      
+    -- Count ONLY observable chest success, never a click/teleport attempt.
+    -- The same chest instance cannot increase the count twice in a cycle.
+    function Items.confirmChest(info)
+        if not info or Items.chestConfirmed[info.object] then return end
+        if not autoChestEnabled or Items.awaitingRespawn then return end
+        Items.chestConfirmed[info.object] = true
+        Items.fastChestVisited[info.object] = true
+        Items.chestCount = Items.chestCount + 1
+        Items.clear("chest-collected")
+        Items.nextSearch = 0
+        if Items.chestCount < 4 then return end
+
+        -- Death, NOT a script restart or a server rejoin. Keep the toggle active.
+        Items.awaitingRespawn = true
+        Items.respawnCharacter = LocalPlayer.Character
+        local character = Items.respawnCharacter
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        if humanoid and humanoid.Health > 0 then
+            local ok = pcall(function() humanoid.Health = 0 end)
+            if not ok then
+                Items.awaitingRespawn = false
+                warn("[Random Hub | Auto Chest] Could not kill character after 4 chests.")
+            end
+        else
+            Items.awaitingRespawn = false
+        end
+    end
+
     function Items.fastChestTick(now, character, root)
         local info = Items.target
         if info then
-            if Items.collected(info) or not info.object.Parent or not info.object:IsDescendantOf(workspace) then
-                Items.fastChestVisited[info.object] = true
-                Items.clear("chest-finished")
-                Items.nextSearch = 0
+            local collected = Items.collected(info)
+            if collected or not info.object.Parent or not info.object:IsDescendantOf(workspace) then
+                if Items.attempts and Items.attempts > 0 and collected then
+                    Items.confirmChest(info)
+                else
+                    Items.fastChestVisited[info.object] = true
+                    Items.clear("chest-gone")
+                    Items.nextSearch = 0
+                end
                 return
             end
             local renewed = Items.info(info.object, "chest")
             if not renewed then
+                -- A chest may become unavailable for reasons other than collection.
+                -- Do not count it unless the collection predicate confirms success.
                 Items.fastChestVisited[info.object] = true
                 Items.clear("chest-unavailable")
                 Items.nextSearch = 0
@@ -5202,33 +5270,34 @@ runSection("AutoChest", function()
             Items.target = info
             Items.startedAt, Items.attempts = now, 0
             Items.contactAt, Items.interactedAt = nil, nil
-            Items.fastChestPhase, Items.fastChestHoldUntil = "move", nil
+            Items.fastChestPhase, Items.fastChestHoldUntil = "teleport", nil
         end
-        if Items.fastChestPhase=="move" or Items.fastChestPhase=="walk" or Items.fastChestPhase=="fly" then
-            local safe=SafeMode.Enabled
-            local phase=safe and "walk" or "fly"
-            if Items.fastChestPhase~=phase then
-                Items.fastChestPhase=phase
-                local speed=safe and math.max(1,SafeMode.walkSpeed()) or 250
-                Items.chestTravelDeadline=now+math.clamp((root.Position-info.part.Position).Magnitude/speed+45,45,600)
+
+        if Items.fastChestPhase == "teleport" or Items.fastChestPhase == "move"
+            or Items.fastChestPhase == "walk" or Items.fastChestPhase == "fly" then
+            Items.fastChestPhase = "teleport"
+            Items.chestTravelDeadline = Items.chestTravelDeadline or (now + 30)
+            if now > Items.chestTravelDeadline then Items.clear("unreachable", 20); return end
+            if not Motion.request("Items", info.part, 0, "chest") then
+                Items.clear("paused"); return
             end
-            if now>(Items.chestTravelDeadline or now+45) then Items.clear("unreachable",20);return end
-            local interactive=info.prompt~=nil or info.click~=nil
-            local spacing=interactive and (safe and 1 or 1.5) or 0
-            if not Motion.request("Items",info.part,spacing,safe and "item" or "chest") then
-                Items.clear("paused");return
+            QuestRuntime.ItemBusy = true
+            local range = info.prompt and math.min(5, info.prompt.MaxActivationDistance)
+                or (info.click and math.min(5, info.click.MaxActivationDistance)) or 3.5
+            if (root.Position - info.part.Position).Magnitude > range then
+                if now - Items.lastChestTeleportAt >= 0.55 then
+                    Items.lastChestTeleportAt = now
+                    local dest = info.part.Position + Vector3.new(0, (info.prompt or info.click) and 1.3 or 0.55, 0)
+                    Motion.pivot(character, root, CFrame.new(dest))
+                end
+                return
             end
-            QuestRuntime.ItemBusy=true
-            local range=info.prompt and math.min(5,info.prompt.MaxActivationDistance)
-                or (info.click and math.min(5,info.click.MaxActivationDistance)) or (safe and 3.5 or 0.75)
-            if (root.Position-info.part.Position).Magnitude>range then return end
             Motion.release("Items")
-            Items.fastChestPhase="interact"
+            Items.fastChestPhase = "interact"
             return
         end
         QuestRuntime.ItemBusy = true
         if Items.fastChestPhase == "touching" then
-             
             Items.endTouch()
             Items.fastChestPhase = "finish"
             return
@@ -5246,7 +5315,9 @@ runSection("AutoChest", function()
 
         if Items.fastChestPhase == "interact" then
             local started = false
-            Items.contactAt = now
+            Items.contactAt = Items.contactAt or now
+            Items.interactedAt = now
+            Items.attempts = (Items.attempts or 0) + 1
             if info.prompt and info.prompt.Enabled then
                 if type(fireproximityprompt) == "function" then
                     started = pcall(fireproximityprompt, info.prompt)
@@ -5272,8 +5343,6 @@ runSection("AutoChest", function()
                     end
                 end
                 if not started then
-                     
-                    -- Arrival already used physical movement; wait for natural contact.
                     Items.fastChestHoldUntil = now + 0.6
                     Items.fastChestPhase = "holding"
                     return
@@ -5284,14 +5353,19 @@ runSection("AutoChest", function()
         end
 
         if Items.fastChestPhase == "finish" then
-             
-             
-            Items.fastChestVisited[info.object] = true
-            Items.clear("chest-visited")
-            Items.nextSearch = 0
+            if Items.collected(info) then Items.confirmChest(info); return end
+            -- Wait for the game's collection state to replicate before retrying.
+            if now - (Items.interactedAt or now) < 0.85 then return end
+            if (Items.attempts or 0) < 3 then
+                Items.fastChestPhase = "interact"
+            else
+                Items.fastChestVisited[info.object] = true
+                Items.clear("chest-unconfirmed", 18)
+                Items.nextSearch = 0
+            end
             return
         end
-        Items.fastChestPhase = "move"
+        Items.fastChestPhase = "teleport"
     end
 
     function Items.tick(now)
@@ -5301,6 +5375,20 @@ runSection("AutoChest", function()
             Items.updateFruitMarkers(now)
         end
         if not autoChestEnabled then return end
+        if Items.awaitingRespawn then
+            local nextCharacter = LocalPlayer.Character
+            if not nextCharacter or nextCharacter == Items.respawnCharacter then return end
+            local nextHumanoid = nextCharacter:FindFirstChildOfClass("Humanoid")
+            local nextRoot = nextCharacter:FindFirstChild("HumanoidRootPart")
+            if not nextHumanoid or nextHumanoid.Health <= 0 or not nextRoot then return end
+            Items.awaitingRespawn, Items.respawnCharacter = false, nil
+            Items.chestCount = 0
+            Items.chestConfirmed = setmetatable({}, {__mode = "k"})
+            Items.fastChestVisited = setmetatable({}, {__mode = "k"})
+            Items.regionCooldowns, Items.nextRegionAt = {}, 0
+            Items.rescanNeeded, Items.nextSearch = true, 0
+            Items.clear("respawn-complete")
+        end
         if QuestRuntime.FruitBuying then return end
         if autoQuestEnabled or not Motion.allowed("Items") then Items.clear("paused"); return end
         if not World.ready then return end
@@ -5463,8 +5551,11 @@ runSection("AutoChest", function()
     local function setAutoChestEnabled(state)
         local wasEnabled = autoChestEnabled
         autoChestEnabled = state == true
-        if autoChestEnabled and not wasEnabled then
+        if autoChestEnabled ~= wasEnabled then
             Items.fastChestVisited = setmetatable({}, {__mode = "k"})
+            Items.chestConfirmed = setmetatable({}, {__mode = "k"})
+            Items.chestCount = 0
+            Items.awaitingRespawn, Items.respawnCharacter = false, nil
             Items.fastChestFound = false
         end
         renderAutoChestToggle()
@@ -11381,7 +11472,7 @@ runSection("AutoFarm", function()
                                 task.wait(0.1)
                             else
                                 cancelFarmSearch()
-                                Motion.request("Farm", target, math.clamp(tonumber(farmDistance) or 1, 1, 10), "mob")
+                                Motion.request("Farm", target, FARM_MOB_DISTANCE, "mob")
                                 task.wait(0.2)
                             end
                         end
@@ -11811,7 +11902,7 @@ runSection("AutoFarm", function()
                                         lastHealth = humanoid.Health
                                         if (part.Position - entry.position).Magnitude > 350 then break end
                                         if os.clock() - lastProgress > 45 then break end  
-                                        Motion.request("Farm", found, math.clamp(tonumber(farmDistance) or 1, 1, 10), "mob")
+                                        Motion.request("Farm", found, FARM_MOB_DISTANCE, "mob")
                                         task.wait(0.16)
                                     end
                                 end
@@ -12526,7 +12617,7 @@ runSection("AutoFarm", function()
         return nearest
     end
     function SummonMaterial.attack(model, root)
-        if not Motion.request("Farm", model, math.clamp(tonumber(farmDistance) or 1, 1, 10), "mob") then return end
+        if not Motion.request("Farm", model, FARM_MOB_DISTANCE, "mob") then return end
     end
     function SummonMaterial.findDrop(recipe, root)
         local nearest, best = nil, math.huge
@@ -13055,7 +13146,7 @@ runSection("AutoFarm", function()
         if not W.target and now>=W.searchAt then W.searchAt=now+0.75;W.target=W.find(entry) end
         if W.target then
             W.arrivedAt=nil
-            Motion.request("Farm",W.target,math.clamp(tonumber(farmDistance) or 1,1,10),"mob")
+            Motion.request("Farm",W.target,FARM_MOB_DISTANCE,"mob")
             return
         end
         local destination=entry.position+Vector3.new(0,3,0)
@@ -13565,7 +13656,7 @@ runSection("AutoSwords", function()
             if os.clock()-(Swords.progressAt or os.clock())>45 then
                 Swords.blocked[model]=os.clock()+15;Swords.target=nil;Motion.release("Swords");return
             end
-            Motion.request("Swords",model,math.clamp(tonumber(farmDistance) or 1,1,10),"mob")
+            Motion.request("Swords",model,FARM_MOB_DISTANCE,"mob")
         else
             local point=Swords.camp(source)
             local _,root=Motion.character()
@@ -14327,9 +14418,12 @@ runSection("Config", function()
     setAntiAfk(true)
     Stoppers.AntiAfk = stopAntiAfk
     createCombatToggle(ConfigPage, "FPSBoostToggleCard", "FPS Boost", 6, Graphics.setEnabled)
-    -- V1.33 session continuity. These are genuine toggles, not status-only labels.
+    -- V1.34 session continuity. These are genuine toggles, not status-only labels.
     createCombatToggle(ConfigPage, "AutoRejoinToggleCard", "Auto Rejoin", 8, function(on)
         Persistent.autoRejoin = on == true
+        if type(Persistent.onRejoinChanged) == "function" then
+            Persistent.onRejoinChanged(Persistent.autoRejoin)
+        end
     end)
     createCombatToggle(ConfigPage, "AutoExecuteToggleCard", "Auto Execute", 9, function(on)
         Persistent.autoExecute = on == true
@@ -14347,8 +14441,6 @@ runSection("Config", function()
     if Persistent.saved.AutoSaveSettingsToggleCard == nil then
         Persistent.entries.AutoSaveSettingsToggleCard.set(true)
     end
-    local setAntiKick=createCombatToggle(ConfigPage,"AntiKickToggleCard","Anti Kick",5,FarmMode.AntiKick.setEnabled)
-    setAntiKick(FarmMode.AntiKick.Enabled)
     local modeCard=createStyledCard(ConfigPage,"FarmModeSelectionCard",58,4)
     local modeHeader=Instance.new("TextButton")
     modeHeader.Name="SelectFarmMode";modeHeader.Size=UDim2.new(1,0,0,58)
@@ -14396,11 +14488,12 @@ runSection("Config", function()
         if type(mode) == "string" then FarmMode.select(mode) end
     end, 45)
 
-    local FarmDistanceCard = createStyledCard(ConfigPage, "FarmDistanceCard", 96, 2)
+    -- Fixed distance applies to all modes, so avoid an obsolete 1-10 slider.
+    local FarmDistanceCard = createStyledCard(ConfigPage, "FarmDistanceCard", 56, 2)
     local FarmDistanceTitle = Instance.new("TextLabel")
     FarmDistanceTitle.Name = "FarmDistanceTitle"
-    FarmDistanceTitle.Size = UDim2.new(1, -120, 0, 24)
-    FarmDistanceTitle.Position = UDim2.fromOffset(16, 8)
+    FarmDistanceTitle.Size = UDim2.new(1, -122, 1, 0)
+    FarmDistanceTitle.Position = UDim2.fromOffset(16, 0)
     FarmDistanceTitle.BackgroundTransparency = 1
     FarmDistanceTitle.Text = "Distance from NPC"
     FarmDistanceTitle.TextColor3 = Theme.Text
@@ -14408,89 +14501,19 @@ runSection("Config", function()
     FarmDistanceTitle.TextSize = 14
     FarmDistanceTitle.TextXAlignment = Enum.TextXAlignment.Left
     FarmDistanceTitle.Parent = FarmDistanceCard
-
     local FarmDistanceValue = Instance.new("TextLabel")
     FarmDistanceValue.Name = "FarmDistanceValue"
-    FarmDistanceValue.Size = UDim2.fromOffset(95, 24)
-    FarmDistanceValue.Position = UDim2.new(1, -111, 0, 8)
+    FarmDistanceValue.Size = UDim2.fromOffset(100, 56)
+    FarmDistanceValue.Position = UDim2.new(1, -116, 0, 0)
     FarmDistanceValue.BackgroundTransparency = 1
-    FarmDistanceValue.Text = string.format("%.1f studs", farmDistance)
+    FarmDistanceValue.Text = "6 studs"
     FarmDistanceValue.TextColor3 = Theme.Accent2
     FarmDistanceValue.Font = Enum.Font.GothamBold
     FarmDistanceValue.TextSize = 13
     FarmDistanceValue.TextXAlignment = Enum.TextXAlignment.Right
     FarmDistanceValue.Parent = FarmDistanceCard
-
-    local FarmDistanceTrack = Instance.new("TextButton")
-    FarmDistanceTrack.Name = "FarmDistanceTrack"
-    FarmDistanceTrack.Size = UDim2.new(1, -32, 0, 8)
-    FarmDistanceTrack.Position = UDim2.fromOffset(16, 50)
-    FarmDistanceTrack.BackgroundColor3 = Theme.BgSecondary
-    FarmDistanceTrack.BorderSizePixel = 0
-    FarmDistanceTrack.Text = ""
-    FarmDistanceTrack.AutoButtonColor = false
-    FarmDistanceTrack.Parent = FarmDistanceCard
-    addCorner(FarmDistanceTrack, 4)
-
-    local FarmDistanceFill = Instance.new("Frame")
-    FarmDistanceFill.Name = "FarmDistanceFill"
-    FarmDistanceFill.Size = UDim2.new((farmDistance - 1) / 9, 0, 1, 0)
-    FarmDistanceFill.BackgroundColor3 = Theme.Accent2
-    FarmDistanceFill.BorderSizePixel = 0
-    FarmDistanceFill.Parent = FarmDistanceTrack
-    addCorner(FarmDistanceFill, 4)
-
-    local FarmDistanceKnob = Instance.new("Frame")
-    FarmDistanceKnob.Name = "FarmDistanceKnob"
-    FarmDistanceKnob.Size = UDim2.fromOffset(18, 18)
-    FarmDistanceKnob.Position = UDim2.new((farmDistance - 1) / 9, -9, 0.5, -9)
-    FarmDistanceKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    FarmDistanceKnob.BorderSizePixel = 0
-    FarmDistanceKnob.Parent = FarmDistanceTrack
-    addCorner(FarmDistanceKnob, 9)
-    addStroke(FarmDistanceKnob, Theme.Accent2, 1, 0.1)
-
-    local function applyFarmDistanceFromX(screenX)
-        local width = FarmDistanceTrack.AbsoluteSize.X
-        if width <= 0 then return end
-        local relative = math.clamp((screenX - FarmDistanceTrack.AbsolutePosition.X) / width, 0, 1)
-        local rawDistance = 1 + relative * 9
-        farmDistance = math.clamp(math.floor(rawDistance * 2 + 0.5) / 2, 1, 10)
-        local fraction = (farmDistance - 1) / 9
-        FarmDistanceValue.Text = string.format("%.1f studs", farmDistance)
-        FarmDistanceFill.Size = UDim2.new(fraction, 0, 1, 0)
-        FarmDistanceKnob.Position = UDim2.new(fraction, -9, 0.5, -9)
-    end
-
-    Persistent.register("FarmDistance", function() return farmDistance end, function(value)
-        local n = tonumber(value)
-        if not n then return end
-        farmDistance = math.clamp(math.floor(n * 2 + 0.5) / 2, 1, 10)
-        local fraction = (farmDistance - 1) / 9
-        FarmDistanceValue.Text = string.format("%.1f studs", farmDistance)
-        FarmDistanceFill.Size = UDim2.new(fraction, 0, 1, 0)
-        FarmDistanceKnob.Position = UDim2.new(fraction, -9, 0.5, -9)
-    end, 20)
-    local draggingFarmDistance = false
-    connect(FarmDistanceTrack.InputBegan, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            draggingFarmDistance = true
-            applyFarmDistanceFromX(input.Position.X)
-        end
-    end)
-    connect(UserInputService.InputChanged, function(input)
-        if draggingFarmDistance and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            applyFarmDistanceFromX(input.Position.X)
-        end
-    end)
-    connect(UserInputService.InputEnded, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            draggingFarmDistance = false
-        end
-    end)
-
-     
-     
+    Persistent.register("FarmDistance", function() return FARM_MOB_DISTANCE end,
+        function() farmDistance = FARM_MOB_DISTANCE end, 20)
 
 end)
 
@@ -14996,87 +15019,285 @@ if Persistent.autoSave then
     task.defer(function() if not destroyed then Persistent.flush(false) end end)
 end
 
+-- V1.34 | Rejoin repair: inspect the *real* Roblox disconnect prompt and
+-- prefer its native Reconnect button. A fully terminated/disconnected client
+-- cannot be restarted solely by an in-game Lua script; TeleportService is
+-- attempted only as a best-effort fallback while the session still permits it.
 local TeleportService = game:GetService("TeleportService")
-local rejoinAttempts, lastRejoinAt = 0, -math.huge
-local function tryAutoRejoin(message)
-    if destroyed or not Persistent.autoRejoin or not LocalPlayer or not LocalPlayer.Parent then return end
-    local lowered = tostring(message or ""):lower()
-    if lowered:find("ban", 1, true) or lowered:find("kick", 1, true)
-        or lowered:find("moderation", 1, true) then return end
-    if not (lowered:find("disconnect", 1, true) or lowered:find("connection", 1, true)
-        or lowered:find("timed out", 1, true) or lowered:find("server shutdown", 1, true)
-        or lowered:find("lost", 1, true) or lowered:find("error code: 277", 1, true)
-        or lowered:find("error code: 279", 1, true)) then return end
+local Rejoin = {
+    detected = false, attempts = 0, lastAttempt = -math.huge,
+    message = "", nextAttempt = 0, inFlight = false,
+    generation = 0, lastPromptClick = -math.huge,
+    disabledReason = false,
+}
+
+local function rejoinText(value)
+    return tostring(value or ""):lower()
+end
+
+local function isDisconnectionMessage(message, code)
+    local lower = rejoinText(message)
+    -- Do not loop on a moderation action, intentional kick, account conflict,
+    -- unauthorized access, or an obsolete client version.
+    for _, phrase in ipairs({
+        "banned", "banido", "baneado", "you were kicked", "you have been kicked",
+        "kicked from", "expulso", "expulsado", "moderation", "moderação",
+        "moderacao", "account launched", "different device", "another device",
+        "error code: 267", "error code: 268", "error code: 264",
+        "código de erro: 267", "codigo de erro: 267",
+    }) do
+        if lower:find(phrase, 1, true) then return false, true end
+    end
+    local numeric = tonumber(code)
+    if numeric == 267 or numeric == 268 or numeric == 264 or numeric == 280 then
+        return false, true
+    end
+    if numeric == 277 or numeric == 279 or numeric == 266 then return true, false end
+    for _, phrase in ipairs({
+        "disconnected", "disconnect", "reconnect", "connection lost",
+        "lost connection", "connection timed out", "timed out", "failed to connect",
+        "unable to connect", "server shutdown", "server shut down", "server closed",
+        "server is shutting down", "connection error", "connection interrupted",
+        "desconectado", "desconectada", "desconexão", "desconexao", "reconectar",
+        "conexão perdida", "conexao perdida", "conexão encerrada", "conexao encerrada",
+        "tempo limite", "tempo esgotado", "servidor encerrado", "servidor desligado",
+        "desconectado del servidor", "se perdió la conexión", "se perdio la conexion",
+        "error code: 277", "error code: 279", "error code: 266",
+        "código de erro: 277", "codigo de erro: 277",
+    }) do
+        if lower:find(phrase, 1, true) then return true, false end
+    end
+    return false, false
+end
+
+local function isRejoinButton(button)
+    if not button or not button:IsA("GuiButton") then return false end
+    local labels = {rejoinText(button.Name)}
+    if button:IsA("TextButton") then labels[#labels + 1] = rejoinText(button.Text) end
+    for _, child in ipairs(button:GetDescendants()) do
+        if child:IsA("TextLabel") then labels[#labels + 1] = rejoinText(child.Text) end
+    end
+    local words = table.concat(labels, " ")
+    for _, name in ipairs({"reconnect", "rejoin", "reconnectbutton", "retry", "reconectar", "reingresar", "tentar novamente", "conectar novamente", "entrar novamente", "volver a conectar"}) do
+        if words:find(name, 1, true) then return true end
+    end
+    return false
+end
+
+local function isGuiVisible(obj)
+    local node = obj
+    while node and node ~= game do
+        if node:IsA("GuiObject") and not node.Visible then return false end
+        if node:IsA("LayerCollector") and not node.Enabled then return false end
+        node = node.Parent
+    end
+    return true
+end
+
+local function findRobloxErrorPrompt()
+    if not CoreGui then return nil end
+    local ok, result = pcall(function()
+        local promptGui = CoreGui:FindFirstChild("RobloxPromptGui")
+        if promptGui then
+            local prompt = promptGui:FindFirstChild("ErrorPrompt", true)
+                or promptGui:FindFirstChild("MessageArea", true)
+            if prompt and isGuiVisible(prompt) then return prompt end
+        end
+        -- Older Roblox clients draw errors in RobloxGui.ErrorFrame.
+        local robloxGui = CoreGui:FindFirstChild("RobloxGui")
+        if robloxGui then
+            local frame = robloxGui:FindFirstChild("ErrorFrame", true)
+            if frame and isGuiVisible(frame) then return frame end
+        end
+        return nil
+    end)
+    return ok and result or nil
+end
+
+local function errorPromptMessage(prompt)
+    if not prompt then return "" end
+    local labels = {}
+    local ok = pcall(function()
+        for _, child in ipairs(prompt:GetDescendants()) do
+            if child:IsA("TextLabel") or child:IsA("TextButton") then
+                local value = child.Text
+                if type(value) == "string" and value ~= "" then labels[#labels + 1] = value end
+            end
+        end
+    end)
+    return ok and table.concat(labels, " ") or ""
+end
+
+local function clickRobloxReconnect(prompt)
+    if not prompt or not isGuiVisible(prompt) then return false end
+    if os.clock() - Rejoin.lastPromptClick < 7 then return false end
+    for _, obj in ipairs(prompt:GetDescendants()) do
+        if isRejoinButton(obj) and isGuiVisible(obj) then
+            local size, pos = obj.AbsoluteSize, obj.AbsolutePosition
+            if size.X > 3 and size.Y > 3 then
+                local x, y = pos.X + size.X / 2, pos.Y + size.Y / 2
+                local ok = false
+                if VirtualInputManager then
+                    ok = pcall(function()
+                        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 0)
+                        task.wait(0.06)
+                        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 0)
+                    end)
+                end
+                -- Executor support and Roblox's core UI security vary.
+                if not ok and type(firesignal) == "function" then
+                    ok = pcall(function() firesignal(obj.Activated) end)
+                    if not ok then ok = pcall(function() firesignal(obj.MouseButton1Click) end) end
+                end
+                if ok then
+                    Rejoin.lastPromptClick = os.clock()
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+local function getGuiConnectionError()
+    if not GuiService then return "", nil end
+    local message, code = "", nil
+    pcall(function() message = GuiService:GetErrorMessage() end)
+    pcall(function()
+        local errorCode = GuiService:GetErrorCode()
+        if typeof(errorCode) == "EnumItem" then code = errorCode.Value
+        elseif type(errorCode) == "number" then code = errorCode end
+    end)
+    return message, code
+end
+
+function Rejoin.observe(message, code)
+    if destroyed or not Persistent.autoRejoin then return end
+    local valid, blocked = isDisconnectionMessage(message, code)
+    if blocked then
+        -- Prevent reconnecting after a deliberate kick/moderation or invalid session.
+        Rejoin.disabledReason = true
+        Rejoin.detected = false
+        return
+    end
+    if not valid or Rejoin.disabledReason then return end
+    if not Rejoin.detected then
+        Rejoin.detected = true
+        Rejoin.attempts = 0
+        Rejoin.nextAttempt = 0
+    end
+    Rejoin.message = tostring(message or "")
+end
+
+function Rejoin.attempt()
+    if destroyed or not Persistent.autoRejoin or not Rejoin.detected or Rejoin.disabledReason
+        or not LocalPlayer or not LocalPlayer.Parent or Rejoin.inFlight then return end
     local now = os.clock()
-    if now - lastRejoinAt < 18 or rejoinAttempts >= 3 then return end
-    lastRejoinAt = now
-    rejoinAttempts = rejoinAttempts + 1
+    if now < Rejoin.nextAttempt or Rejoin.attempts >= 5 then return end
+    Rejoin.attempts = Rejoin.attempts + 1
+    local attempt = Rejoin.attempts
+    Rejoin.lastAttempt = now
+    Rejoin.nextAttempt = now + (attempt == 1 and 6 or attempt == 2 and 7 or 10)
+    Rejoin.inFlight = true
+    local token = Rejoin.generation
+    -- Preserve enabled settings / teleport loader before leaving the server.
+    if Persistent.autoSave then Persistent.flush(false) end
     if Persistent.autoExecute then Persistent.queueTeleport() end
     task.spawn(function()
-        if destroyed or not Persistent.autoRejoin then return end
-        local ok = false
-        if type(game.JobId) == "string" and game.JobId ~= "" then
-            ok = pcall(function()
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
-            end)
+        if destroyed or not Persistent.autoRejoin or token ~= Rejoin.generation then
+            Rejoin.inFlight = false
+            return
         end
-        if not ok and Persistent.autoRejoin and not destroyed then
-            pcall(function() TeleportService:Teleport(game.PlaceId, LocalPlayer) end)
+        local attempted = false
+        if attempt == 1 then
+            -- The native Roblox Reconnect button can restart a *disconnected*
+            -- session even when a TeleportService call cannot reach the server.
+            attempted = clickRobloxReconnect(findRobloxErrorPrompt())
         end
+        if not attempted then
+            if attempt == 2 and type(game.JobId) == "string" and game.JobId ~= "" then
+                -- Try the original public server once, if it still exists.
+                attempted = pcall(function()
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+                end)
+            end
+            if not attempted then
+                -- Subsequent attempts try a fresh public server.
+                local ok, err = pcall(function()
+                    TeleportService:Teleport(game.PlaceId, LocalPlayer)
+                end)
+                if not ok then warn("[Random Hub | Auto Rejoin] Reconnect attempt failed: " .. tostring(err)) end
+            end
+        end
+        if token == Rejoin.generation then Rejoin.inFlight = false end
     end)
 end
-pcall(function()
-    connect(GuiService.ErrorMessageChanged, function(message)
-        tryAutoRejoin(message)
-    end)
-end)
-local function scanDisconnectPrompt(node)
-    if not node or not node.Parent then return end
-    if node.Name ~= "ErrorPrompt" and node.Name ~= "MessageArea" then return end
-    task.defer(function()
-        if destroyed or not node.Parent then return end
-        local pieces = {}
-        for _, desc in ipairs(node:GetDescendants()) do
-            if desc:IsA("TextLabel") then pieces[#pieces + 1] = desc.Text end
-        end
-        tryAutoRejoin(table.concat(pieces, " "))
-        task.delay(0.65, function()
-            if destroyed or not node.Parent then return end
-            local labels = {}
-            for _, desc in ipairs(node:GetDescendants()) do
-                if desc:IsA("TextLabel") then labels[#labels + 1] = desc.Text end
-            end
-            tryAutoRejoin(table.concat(labels, " "))
+
+function Rejoin.check()
+    if destroyed or not Persistent.autoRejoin or Rejoin.disabledReason then return end
+    local message, code = getGuiConnectionError()
+    Rejoin.observe(message, code)
+    local prompt = findRobloxErrorPrompt()
+    if prompt then Rejoin.observe(errorPromptMessage(prompt), code) end
+    if Rejoin.detected then Rejoin.attempt() end
+end
+
+Persistent.onRejoinChanged = function(enabled)
+    Rejoin.generation = Rejoin.generation + 1
+    Rejoin.detected = false
+    Rejoin.inFlight = false
+    Rejoin.disabledReason = false
+    Rejoin.attempts = 0
+    Rejoin.nextAttempt = 0
+    if enabled then task.defer(Rejoin.check) end
+end
+
+-- The message event is deprecated/restricted on some clients, so use a
+-- lightweight periodic prompt check as well as event-based detection.
+if GuiService then
+    pcall(function()
+        connect(GuiService.ErrorMessageChanged, function(message)
+            Rejoin.observe(message)
+            Rejoin.check()
         end)
     end)
 end
 if CoreGui then
     pcall(function()
-        connect(CoreGui.DescendantAdded, scanDisconnectPrompt)
-        for _, node in ipairs(CoreGui:GetDescendants()) do
-            if node.Name == "ErrorPrompt" then scanDisconnectPrompt(node) end
-        end
+        connect(CoreGui.DescendantAdded, function(node)
+            if node.Name == "ErrorPrompt" or node.Name == "MessageArea" or node.Name == "ErrorFrame" then
+                task.delay(0.2, Rejoin.check)
+            end
+        end)
     end)
 end
 pcall(function()
     connect(LocalPlayer.OnTeleport, function(state)
         if state == Enum.TeleportState.Started or state == Enum.TeleportState.InProgress then
+            -- Rejoin is complete as soon as a new teleport actually begins.
+            Rejoin.detected = false
             if Persistent.autoExecute then Persistent.queueTeleport() end
         end
     end)
 end)
 pcall(function()
     connect(TeleportService.TeleportInitFailed, function(player, result, message)
-        if player == LocalPlayer and Persistent.autoRejoin and rejoinAttempts > 0
-            and not destroyed then
-            task.delay(1.5, function()
-                if not destroyed and Persistent.autoRejoin then
-                    pcall(function() TeleportService:Teleport(game.PlaceId, LocalPlayer) end)
-                end
-            end)
-        end
+        if player ~= LocalPlayer or destroyed or not Persistent.autoRejoin
+            or not Rejoin.detected then return end
+        -- pcall(Teleport...) may succeed while the network request later fails.
+        -- Do not retry the same inaccessible instance indefinitely.
+        Rejoin.inFlight = false
+        Rejoin.nextAttempt = math.min(Rejoin.nextAttempt, os.clock() + 2.5)
+        warn("[Random Hub | Auto Rejoin] Teleport initialization failed: " .. tostring(message))
     end)
 end)
+task.spawn(function()
+    while not destroyed do
+        if Persistent.autoRejoin then Rejoin.check() end
+        task.wait(1.25)
+    end
+end)
+
 -- Queue early where supported. A queued loader rechecks the persisted Auto Execute toggle.
 if Persistent.autoExecute then Persistent.queueTeleport() end
 
@@ -15089,12 +15310,12 @@ end)
 ]=====]
 local __env = _G
 pcall(function() if type(getgenv) == "function" then __env = getgenv() end end)
-__env.__RHAnimePieceV133Source = __source
-_G.__RHAnimePieceV133Source = __source
+__env.__RHAnimePieceV134Source = __source
+_G.__RHAnimePieceV134Source = __source
 local __compile = loadstring or load
 if type(__compile) == "function" then
     local __runner, __err = __compile(__source)
-    if __runner then __runner() else warn("[Random Hub v1.33] " .. tostring(__err)) end
+    if __runner then __runner() else warn("[Random Hub v1.34] " .. tostring(__err)) end
 else
-    warn("[Random Hub v1.33] This environment cannot compile a Lua script string.")
+    warn("[Random Hub v1.34] This environment cannot compile a Lua script string.")
 end
