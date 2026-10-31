@@ -1,4 +1,7 @@
--- RANDOM HUB | ANIME PIECE V1.32
+-- RANDOM HUB | ANIME PIECE v1.33 | self-contained Lua file
+-- The source is included for queued auto-execution after supported teleports.
+local __source = [=====[
+-- RANDOM HUB | ANIME PIECE V1.33
  
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -62,7 +65,7 @@ for _, name in ipairs({"FlyUI", "FlyToggle"}) do
 end
 
 local CONFIG = {
-    Version = "1.32",
+    Version = "1.33",
     UISize = UDim2.fromOffset(600, 460),
     UIOffset = UDim2.new(0.5, -300, 0.5, -230),
     UIScale = 1,
@@ -102,6 +105,161 @@ local QuestRuntime = {
     RepeatArmAt = 0,
 }
 local farmDistance = 1.0
+
+
+-- V1.33 | Persist all registered settings. One debounced write on actual UI interaction.
+local HttpService = game:GetService("HttpService")
+local Persistent = {
+    path = "RandomHub_AnimePiece_Settings_" .. tostring(LocalPlayer.UserId) .. "_" .. tostring(game.GameId) .. ".json",
+    sourcePath = "RandomHub_AnimePiece_v1.33_Source.lua",
+    entries = {}, saved = {}, restoring = true,
+    autoSave = true, autoRejoin = false, autoExecute = false,
+    queued = false, lastWritten = nil, dirty = false, generation = 0,
+}
+do
+    local env = _G
+    pcall(function() if type(getgenv) == "function" then env = getgenv() end end)
+    Persistent.env = env
+    local function api(name)
+        local fun = env and env[name]
+        if type(fun) == "function" then return fun end
+        fun = _G[name]
+        return type(fun) == "function" and fun or nil
+    end
+    Persistent.readFile = api("readfile")
+    Persistent.writeFile = api("writefile")
+    Persistent.source = env and env.__RHAnimePieceV133Source or _G.__RHAnimePieceV133Source
+    local previous = env.__RHAnimePieceSettings
+    if type(previous) == "table" then Persistent.saved = previous end
+    if Persistent.readFile then
+        local ok, content = pcall(Persistent.readFile, Persistent.path)
+        if ok and type(content) == "string" and #content < 250000 then
+            local decoded, data = pcall(function() return HttpService:JSONDecode(content) end)
+            if decoded and type(data) == "table" and type(data.values) == "table" then
+                Persistent.saved = data.values
+            end
+        end
+    end
+    env.__RHAnimePieceSettings = Persistent.saved
+    local stored = Persistent.saved
+    if type(stored["AutoSaveSettingsToggleCard"]) == "boolean" then
+        Persistent.autoSave = stored["AutoSaveSettingsToggleCard"]
+    end
+    Persistent.autoExecute = stored["AutoExecuteToggleCard"] == true
+    Persistent.autoRejoin = stored["AutoRejoinToggleCard"] == true
+end
+function Persistent.register(name, getter, setter, priority)
+    Persistent.entries[name] = {get = getter, set = setter, priority = priority or 100}
+end
+function Persistent.snapshot()
+    local values = {}
+    for name, value in pairs(Persistent.saved) do values[name] = value end
+    for name, entry in pairs(Persistent.entries) do
+        local ok, value = pcall(entry.get)
+        if ok and (type(value) == "boolean" or type(value) == "number"
+            or type(value) == "string" or type(value) == "table") then
+            values[name] = value
+        end
+    end
+    return values
+end
+function Persistent.flush(force)
+    if Persistent.restoring or (not Persistent.autoSave and not force) then return false end
+    local values = Persistent.snapshot()
+    Persistent.saved = values
+    Persistent.env.__RHAnimePieceSettings = values
+    local ok, payload = pcall(function() return HttpService:JSONEncode({version = 1, values = values}) end)
+    if not ok then return false end
+    Persistent.dirty = false
+    if payload == Persistent.lastWritten then return true end
+    if Persistent.writeFile then
+        local saved, err = pcall(Persistent.writeFile, Persistent.path, payload)
+        if saved then Persistent.lastWritten = payload; return true end
+        warn("[Random Hub | Settings] Could not write settings: " .. tostring(err))
+    end
+    -- If the executor has no file API, settings last only for this live executor session.
+    return false
+end
+function Persistent.queue()
+    if Persistent.restoring or destroyed or not Persistent.autoSave then return end
+    Persistent.generation = Persistent.generation + 1
+    local token = Persistent.generation
+    task.delay(0.65, function()
+        if not destroyed and token == Persistent.generation then Persistent.flush(false) end
+    end)
+end
+function Persistent.restore()
+    local todo = {}
+    for name, entry in pairs(Persistent.entries) do
+        if Persistent.saved[name] ~= nil then
+            todo[#todo + 1] = {name = name, entry = entry}
+        end
+    end
+    table.sort(todo, function(a, b)
+        if a.entry.priority == b.entry.priority then return a.name < b.name end
+        return a.entry.priority < b.entry.priority
+    end)
+    for _, item in ipairs(todo) do
+        local ok, err = pcall(item.entry.set, Persistent.saved[item.name])
+        if not ok then warn("[Random Hub | Settings] Restore " .. item.name .. ": " .. tostring(err)) end
+    end
+    Persistent.restoring = false
+    -- No automatic disk write at launch: old saved choices remain intact.
+end
+function Persistent.queueTeleport()
+    if destroyed or not Persistent.autoExecute or Persistent.queued then return false end
+    local env = Persistent.env
+    local queueFn = (env and env.queue_on_teleport) or _G.queue_on_teleport
+    if type(queueFn) ~= "function" then
+        local syn = env and env.syn or _G.syn
+        if type(syn) == "table" and type(syn.queue_on_teleport) == "function" then queueFn = syn.queue_on_teleport end
+    end
+    if type(queueFn) ~= "function" then
+        warn("[Random Hub | Auto Execute] Executor has no queue_on_teleport support.")
+        return false
+    end
+    local source = Persistent.source
+    if type(source) ~= "string" or #source < 1000 then
+        warn("[Random Hub | Auto Execute] Script source unavailable; run the complete .lua file.")
+        return false
+    end
+    local bootstrap = 'local source = nil\n'
+    local storedFile = false
+    -- A file-based teleport loader is small and survives chained teleports.
+    if Persistent.writeFile and Persistent.readFile then
+        storedFile = pcall(Persistent.writeFile, Persistent.sourcePath, source)
+        if storedFile then
+            bootstrap = bootstrap .. 'pcall(function() if type(readfile) == "function" then source = readfile(' .. string.format("%q", Persistent.sourcePath) .. ') end end)\n'
+        end
+    end
+    -- Executors without a file API receive a larger self-contained queued payload.
+    if not storedFile then
+        bootstrap = bootstrap .. 'if not source then source = ' .. string.format('%q', source) .. ' end\n'
+    end
+    bootstrap = bootstrap .. [[
+local env = _G
+pcall(function() if type(getgenv)=="function" then env=getgenv() end end)
+local shouldRun = true
+if type(readfile)=="function" then
+    pcall(function()
+        local path = "RandomHub_AnimePiece_Settings_" .. tostring(game:GetService("Players").LocalPlayer.UserId) .. "_" .. tostring(game.GameId) .. ".json"
+        local raw = readfile(path)
+        local data = game:GetService("HttpService"):JSONDecode(raw)
+        if type(data)=="table" and type(data.values)=="table"
+            and data.values.AutoExecuteToggleCard==false then shouldRun=false end
+    end)
+end
+if shouldRun and type(loadstring)=="function" and type(source)=="string" then
+    env.__RHAnimePieceV133Source=source
+    local runner=loadstring(source)
+    if runner then runner() end
+end
+]]
+    local ok, err = pcall(queueFn, bootstrap)
+    if ok then Persistent.queued = true; return true end
+    warn("[Random Hub | Auto Execute] Queue failed: " .. tostring(err))
+    return false
+end
 
 local function connect(signal, callback)
     local connection = signal:Connect(callback)
@@ -634,7 +792,7 @@ runSection("Home", function()
     local HomePage = Pages.Home
      
     local UpdateCard = Instance.new("Frame")
-    UpdateCard.Name = "UpdateV132Card"
+    UpdateCard.Name = "UpdateV133Card"
     UpdateCard.Size = UDim2.new(1, 0, 0, 270)
     UpdateCard.Position = UDim2.fromOffset(0, 68)
     UpdateCard.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -659,13 +817,13 @@ runSection("Home", function()
         return label
     end
 
-    updateLabel("UpdateTitle", "Version v1.32", 14, 28, Enum.Font.GothamBold, 19, Theme.Text)
+    updateLabel("UpdateTitle", "Version v1.33", 14, 28, Enum.Font.GothamBold, 19, Theme.Text)
      
      
     local features = {
-        "Improved Auto Get Quest",
-        "Add Auto World Boss",
-        "Add Auto Buy Light",
+        "Add Auto Rejoin",
+        "Add Auto Execute",
+        "Add Auto Save Settings",
     }
     for index, feature in ipairs(features) do
         updateLabel("Feature" .. index, "+ " .. feature, 61 + (index - 1) * 27, 23, Enum.Font.Gotham, 14, Theme.Accent2)
@@ -797,6 +955,7 @@ local function createCombatToggle(parent, objectName, titleText, layoutOrder, ca
     end
     connect(clickArea.MouseButton1Click, function() setState(not enabled) end)
     connect(track.MouseButton1Click, function() setState(not enabled) end)
+    Persistent.register(objectName, function() return enabled end, setState, 110)
     return setState, function() return enabled end, card
 end
 
@@ -3904,6 +4063,7 @@ runSection("Combat", function()
         combatSetAutoEquip(combatEquipEnabled)
     end
     connect(CombatEquipToggle.MouseButton1Click, function() setCombatEquipState(not combatEquipEnabled) end)
+    Persistent.register("CombatAutoEquip", function() return combatEquipEnabled end, setCombatEquipState, 110)
 
     local CombatSlotSelectionCard = createStyledCard(CombatPage, "CombatSlotSelectionCard", 58, 2)
     CombatSlotSelectionCard.ClipsDescendants = true
@@ -4004,6 +4164,16 @@ runSection("Combat", function()
         for _,c in ipairs(equipRowConnections) do c:Disconnect() end
         equipRowConnections={}
     end
+
+    Persistent.register("CombatEquipSlot", function()
+        return CombatCfg.SelectedSlot or 0
+    end, function(value)
+        local slot = tonumber(value)
+        if slot and slot >= 1 and slot <= 10 then
+            if CombatCfg.SelectedSlot ~= slot then combatSelectSlot(slot) end
+        end
+        renderEquipDropdown()
+    end, 36)
 
     createCombatToggle(CombatPage, "CombatSkillToggleCard", "Auto Skills", 3, combatToggleAutoSkill)
      
@@ -4122,7 +4292,20 @@ runSection("Combat", function()
     local CombatSkillSelectionCard = createStyledCard(CombatPage, "CombatSkillSelectionCard", 58, 4)
     local combatSkillNames = {}
     for _, data in ipairs(SKILL_KEYS) do combatSkillNames[#combatSkillNames+1] = data.Key end
-    createRandomHubSkillDropdown(CombatSkillSelectionCard, "Select Skills", combatSkillNames, CombatCfg.SelectedSkills)
+    local refreshCombatSkills = createRandomHubSkillDropdown(CombatSkillSelectionCard, "Select Skills", combatSkillNames, CombatCfg.SelectedSkills)
+    Persistent.register("CombatSelectedSkills", function()
+        local selected = {}
+        for _, item in ipairs(SKILL_KEYS) do
+            selected[item.Label] = CombatCfg.SelectedSkills[item.Key] == true
+        end
+        return selected
+    end, function(value)
+        if type(value) ~= "table" then return end
+        for _, item in ipairs(SKILL_KEYS) do
+            CombatCfg.SelectedSkills[item.Key] = value[item.Label] == true
+        end
+        refreshCombatSkills()
+    end, 25)
 
     createCombatToggle(CombatPage, "CombatAttackToggleCard", "Auto Attack", 5, combatToggleAutoAttack)
 end)
@@ -5288,6 +5471,7 @@ runSection("AutoChest", function()
         Items.restart()
     end
     connect(AutoChestToggle.MouseButton1Click, function() setAutoChestEnabled(not autoChestEnabled) end)
+    Persistent.register("AutoCollectChest", function() return autoChestEnabled end, setAutoChestEnabled, 110)
     createCombatToggle(Pages.Fruit, "DetectedFruitCard", "Detected Fruit", 2, function(state)
          
         Items.fruitEnabled = state == true
@@ -8923,6 +9107,11 @@ runSection("QuestAcceptanceUI", function()
             if not A.enabled then A.stopDiscovery() end
         end
     end)
+    Persistent.register("QuestNPCSelected", function() return A.selectedKey or "" end, function(value)
+        if type(value) ~= "string" then return end
+        if value ~= "" then A.select(value) else A.selectedKey = nil end
+        if A.refreshDropdown then A.refreshDropdown() end
+    end, 36)
     Stoppers.QuestNPCDropdown = function()
         for _, connection in ipairs(rowConnections) do connection:Disconnect() end
         if A.catalogTimer then pcall(task.cancel, A.catalogTimer); A.catalogTimer = nil end
@@ -9881,6 +10070,21 @@ runSection("FruitShopUI", function()
      
      
      
+    Persistent.register("SelectedBuyFruits", function()
+        local items = {}
+        for _, name in ipairs(World.fruitCatalog) do
+            if B.selected[name] == true then items[#items + 1] = name end
+        end
+        return items
+    end, function(value)
+        if type(value) ~= "table" then return end
+        table.clear(B.selected)
+        for _, name in ipairs(value) do
+            if table.find(World.fruitCatalog, name) then B.selected[name] = true end
+        end
+        render()
+    end, 35)
+
     local stockCard = createStyledCard(page, "FruitStockAvailableCard", 112, 5)
     local stockTitle = Instance.new("TextLabel")
     stockTitle.Name = "FruitStockTitle"
@@ -11212,6 +11416,29 @@ runSection("AutoFarm", function()
     end
     stopAutoFarm = disableAutoFarm
 
+    Persistent.register("FarmMobSelection", function()
+        local names = {}
+        for _, name in ipairs(selectedFarmMobNames) do names[#names + 1] = name end
+        return names
+    end, function(value)
+        if type(value) ~= "table" then return end
+        table.clear(selectedFarmMobNames)
+        local seen = {}
+        for _, name in ipairs(value) do
+            if type(name) == "string" and #name <= 100 and not seen[name] then
+                selectedFarmMobNames[#selectedFarmMobNames + 1] = name
+                seen[name] = true
+            end
+        end
+        QuestRuntime.HasFarmSelection = #selectedFarmMobNames > 0
+        currentFarmMobIndex = 1
+        farmTarget = nil
+        if refreshFarmMobTypes then refreshFarmMobTypes(true) end
+        updateFarmSelectionText()
+    end, 30)
+    Persistent.register("AutoFarmMain", function() return autoFarmEnabled end, function(on)
+        if on == true then startAutoFarm(true) else disableAutoFarm() end
+    end, 120)
     connect(FarmToggle.MouseButton1Click, function()
         if autoFarmEnabled then disableAutoFarm() else startAutoFarm(true) end
     end)
@@ -11637,6 +11864,26 @@ runSection("AutoFarm", function()
         connect(MiniToggle.MouseButton1Click, function()
             if miniBossEnabled then stopMiniBoss() else startMiniBoss() end
         end)
+        Persistent.register("MiniBossSelection", function()
+            local names = {}
+            for _, name in ipairs(miniSelectionOrder) do names[#names + 1] = name end
+            return names
+        end, function(value)
+            if type(value) ~= "table" then return end
+            table.clear(miniSelected)
+            table.clear(miniSelectionOrder)
+            for _, name in ipairs(value) do
+                if miniByName[name] and not miniSelected[name] then
+                    miniSelected[name] = true
+                    miniSelectionOrder[#miniSelectionOrder + 1] = name
+                end
+            end
+            miniSelectionVersion = miniSelectionVersion + 1
+            renderMini()
+        end, 30)
+        Persistent.register("AutoMiniBoss", function() return miniBossEnabled end, function(on)
+            if on == true then startMiniBoss() else stopMiniBoss() end
+        end, 122)
         Stoppers.MiniBoss = function()
             stopMiniBoss()
             MiniBossDropdown.Visible = false
@@ -12676,6 +12923,14 @@ runSection("AutoFarm", function()
     connect(BossTrack.MouseButton1Click, function()
         if WorldBoss.Enabled then stopWorldBoss() else startWorldBoss() end
     end)
+    Persistent.register("SummonBossSelected", function() return WorldBoss.Selected or "" end, function(value)
+        if value == "" then WorldBoss.Selected = nil
+        elseif type(value) == "string" and WorldBoss.Camp[value] then WorldBoss.Selected = value end
+        bossRender()
+    end, 30)
+    Persistent.register("AutoSummonBoss", function() return WorldBoss.Enabled end, function(on)
+        if on == true then startWorldBoss() else stopWorldBoss() end
+    end, 123)
     Stoppers.WorldBoss = stopWorldBoss
     WorldBoss.Start = startWorldBoss
     WorldBoss.Refresh = bossRender
@@ -12921,6 +13176,21 @@ runSection("AutoFarm", function()
         timedList.Visible=not timedList.Visible
     end)
     TimedWorldBoss.render()
+    Persistent.register("TimedBossSelection", function()
+        local names = {}
+        for name, enabled in pairs(TimedWorldBoss.selected) do
+            if enabled == true then names[#names + 1] = name end
+        end
+        table.sort(names)
+        return names
+    end, function(value)
+        if type(value) ~= "table" then return end
+        table.clear(TimedWorldBoss.selected)
+        for _, name in ipairs(value) do
+            if TimedWorldBoss.byName[name] then TimedWorldBoss.selected[name] = true end
+        end
+        TimedWorldBoss.selectionChanged()
+    end, 30)
 
     local selectorWorker = task.spawn(function()
         local lastWorldRevision = -1
@@ -13654,6 +13924,12 @@ runSection("AutoStats", function()
         batchTarget, batchRemaining = nil, 0
     end)
 
+    Persistent.register("AutoStatsPointsPerBatch", function() return pointsPerBatch end, function(value)
+        local n = tonumber(value)
+        if n then pointsPerBatch = math.clamp(math.floor(n), 1, 1000) end
+        BatchInput.Text = tostring(pointsPerBatch)
+    end, 20)
+
     local function normalize(value)
         return tostring(value or ""):lower():gsub("<[^>]*>", "")
             :gsub("[^%a%d]", "")
@@ -13999,6 +14275,17 @@ runSection("Config", function()
         end
     end
 
+    Persistent.register("UIScale", function() return CONFIG.UIScale end, function(value)
+        local scale = tonumber(value)
+        if not scale then return end
+        CONFIG.UIScale = math.clamp(scale, 0.7, 1.3)
+        MainScale.Scale = CONFIG.UIScale
+        local fraction = (CONFIG.UIScale - 0.7) / 0.6
+        ScaleValue.Text = tostring(math.floor(CONFIG.UIScale * 100 + 0.5)) .. "%"
+        ScaleFill.Size = UDim2.new(fraction, 0, 1, 0)
+        ScaleKnob.Position = UDim2.new(fraction, -9, 0.5, -9)
+        Main.Position = getScaledWindowOffset()
+    end, 20)
     connect(ScaleTrack.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             draggingScale = true
@@ -14040,6 +14327,26 @@ runSection("Config", function()
     setAntiAfk(true)
     Stoppers.AntiAfk = stopAntiAfk
     createCombatToggle(ConfigPage, "FPSBoostToggleCard", "FPS Boost", 6, Graphics.setEnabled)
+    -- V1.33 session continuity. These are genuine toggles, not status-only labels.
+    createCombatToggle(ConfigPage, "AutoRejoinToggleCard", "Auto Rejoin", 8, function(on)
+        Persistent.autoRejoin = on == true
+    end)
+    createCombatToggle(ConfigPage, "AutoExecuteToggleCard", "Auto Execute", 9, function(on)
+        Persistent.autoExecute = on == true
+        if not Persistent.restoring then
+            Persistent.flush(true)
+            if on then Persistent.queueTeleport() end
+        end
+    end)
+    createCombatToggle(ConfigPage, "AutoSaveSettingsToggleCard", "Auto Save Settings", 10, function(on)
+        Persistent.autoSave = on == true
+        if not Persistent.restoring then
+            if on then Persistent.queue() else Persistent.flush(true) end
+        end
+    end)
+    if Persistent.saved.AutoSaveSettingsToggleCard == nil then
+        Persistent.entries.AutoSaveSettingsToggleCard.set(true)
+    end
     local setAntiKick=createCombatToggle(ConfigPage,"AntiKickToggleCard","Anti Kick",5,FarmMode.AntiKick.setEnabled)
     setAntiKick(FarmMode.AntiKick.Enabled)
     local modeCard=createStyledCard(ConfigPage,"FarmModeSelectionCard",58,4)
@@ -14085,6 +14392,9 @@ runSection("Config", function()
         if not destroyed then modeList.Visible=not modeList.Visible end
     end)
     FarmMode.render()
+    Persistent.register("FarmModeSelection", function() return FarmMode.selected end, function(mode)
+        if type(mode) == "string" then FarmMode.select(mode) end
+    end, 45)
 
     local FarmDistanceCard = createStyledCard(ConfigPage, "FarmDistanceCard", 96, 2)
     local FarmDistanceTitle = Instance.new("TextLabel")
@@ -14152,6 +14462,15 @@ runSection("Config", function()
         FarmDistanceKnob.Position = UDim2.new(fraction, -9, 0.5, -9)
     end
 
+    Persistent.register("FarmDistance", function() return farmDistance end, function(value)
+        local n = tonumber(value)
+        if not n then return end
+        farmDistance = math.clamp(math.floor(n * 2 + 0.5) / 2, 1, 10)
+        local fraction = (farmDistance - 1) / 9
+        FarmDistanceValue.Text = string.format("%.1f studs", farmDistance)
+        FarmDistanceFill.Size = UDim2.new(fraction, 0, 1, 0)
+        FarmDistanceKnob.Position = UDim2.new(fraction, -9, 0.5, -9)
+    end, 20)
     local draggingFarmDistance = false
     connect(FarmDistanceTrack.InputBegan, function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -14378,6 +14697,13 @@ runSection("Movement", function()
         FlySpeedValue.Text = tostring(ManualFlight.Speed)
     end
 
+    Persistent.register("ManualFlySpeed", function() return ManualFlight.Speed end, function(value)
+        local speed = tonumber(value)
+        if not speed then return end
+        ManualFlight.Speed = math.clamp(math.floor(speed + 0.5), 1, 300)
+        renderFlySpeed()
+    end, 22)
+
     local draggingFlySpeed = false
     local function setFlySpeedFromX(screenX)
         local width = FlySpeedTrack.AbsoluteSize.X
@@ -14494,6 +14820,15 @@ runSection("Movement", function()
         SpeedValue.Text=tostring(WalkSpeed.Speed)
     end
     WalkSpeed.render()
+    Persistent.register("WalkSpeed", function() return WalkSpeed.Speed end, function(value)
+        if tonumber(value) then WalkSpeed.setSpeed(value) end
+    end, 20)
+    Persistent.register("WalkSpeedEnabled", function() return WalkSpeed.Enabled end, function(value)
+        WalkSpeed.setEnabled(value == true)
+        -- ensure UI toggle remains in sync via the registered UI setter
+        local entry = Persistent.entries["ManualSpeedToggleCard"]
+        if entry then entry.set(value == true) end
+    end, 107)
     local draggingSpeed=false
     local function setWalkSpeedFromX(screenX)
         local width=SpeedTrack.AbsoluteSize.X
@@ -14525,6 +14860,15 @@ runSection("Movement", function()
 
 end)
 
+-- The UI has several specialized selectors; save after any completed click/touch or text entry.
+-- Debounced snapshot keeps their registered selection tables in sync automatically.
+connect(UserInputService.InputEnded, function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+        task.delay(0.08, Persistent.queue)
+    end
+end)
+connect(UserInputService.TextBoxFocusReleased, function() Persistent.queue() end)
 local SmallGui = Instance.new("ScreenGui")
 SmallGui.AutoLocalize = false
 SmallGui.Name = "FlyToggle"
@@ -14575,6 +14919,8 @@ end
 
 local function destroyUI()
     if destroyed then return end
+    -- Save BEFORE shutdown callbacks disable automations (when Auto Save is on).
+    Persistent.flush(false)
     destroyed = true
     if Motion and Motion.cancelLongTravel then Motion.cancelLongTravel() end
     TeleportLoading.finish()
@@ -14644,9 +14990,111 @@ end
 _G.__AnimePieceHomeUIStop = destroyUI
 _G.__RamdomHubStop = destroyUI
 
+-- Apply saved selections before starting automation toggles.
+Persistent.restore()
+if Persistent.autoSave then
+    task.defer(function() if not destroyed then Persistent.flush(false) end end)
+end
+
+local TeleportService = game:GetService("TeleportService")
+local rejoinAttempts, lastRejoinAt = 0, -math.huge
+local function tryAutoRejoin(message)
+    if destroyed or not Persistent.autoRejoin or not LocalPlayer or not LocalPlayer.Parent then return end
+    local lowered = tostring(message or ""):lower()
+    if lowered:find("ban", 1, true) or lowered:find("kick", 1, true)
+        or lowered:find("moderation", 1, true) then return end
+    if not (lowered:find("disconnect", 1, true) or lowered:find("connection", 1, true)
+        or lowered:find("timed out", 1, true) or lowered:find("server shutdown", 1, true)
+        or lowered:find("lost", 1, true) or lowered:find("error code: 277", 1, true)
+        or lowered:find("error code: 279", 1, true)) then return end
+    local now = os.clock()
+    if now - lastRejoinAt < 18 or rejoinAttempts >= 3 then return end
+    lastRejoinAt = now
+    rejoinAttempts = rejoinAttempts + 1
+    if Persistent.autoExecute then Persistent.queueTeleport() end
+    task.spawn(function()
+        if destroyed or not Persistent.autoRejoin then return end
+        local ok = false
+        if type(game.JobId) == "string" and game.JobId ~= "" then
+            ok = pcall(function()
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+            end)
+        end
+        if not ok and Persistent.autoRejoin and not destroyed then
+            pcall(function() TeleportService:Teleport(game.PlaceId, LocalPlayer) end)
+        end
+    end)
+end
+pcall(function()
+    connect(GuiService.ErrorMessageChanged, function(message)
+        tryAutoRejoin(message)
+    end)
+end)
+local function scanDisconnectPrompt(node)
+    if not node or not node.Parent then return end
+    if node.Name ~= "ErrorPrompt" and node.Name ~= "MessageArea" then return end
+    task.defer(function()
+        if destroyed or not node.Parent then return end
+        local pieces = {}
+        for _, desc in ipairs(node:GetDescendants()) do
+            if desc:IsA("TextLabel") then pieces[#pieces + 1] = desc.Text end
+        end
+        tryAutoRejoin(table.concat(pieces, " "))
+        task.delay(0.65, function()
+            if destroyed or not node.Parent then return end
+            local labels = {}
+            for _, desc in ipairs(node:GetDescendants()) do
+                if desc:IsA("TextLabel") then labels[#labels + 1] = desc.Text end
+            end
+            tryAutoRejoin(table.concat(labels, " "))
+        end)
+    end)
+end
+if CoreGui then
+    pcall(function()
+        connect(CoreGui.DescendantAdded, scanDisconnectPrompt)
+        for _, node in ipairs(CoreGui:GetDescendants()) do
+            if node.Name == "ErrorPrompt" then scanDisconnectPrompt(node) end
+        end
+    end)
+end
+pcall(function()
+    connect(LocalPlayer.OnTeleport, function(state)
+        if state == Enum.TeleportState.Started or state == Enum.TeleportState.InProgress then
+            if Persistent.autoExecute then Persistent.queueTeleport() end
+        end
+    end)
+end)
+pcall(function()
+    connect(TeleportService.TeleportInitFailed, function(player, result, message)
+        if player == LocalPlayer and Persistent.autoRejoin and rejoinAttempts > 0
+            and not destroyed then
+            task.delay(1.5, function()
+                if not destroyed and Persistent.autoRejoin then
+                    pcall(function() TeleportService:Teleport(game.PlaceId, LocalPlayer) end)
+                end
+            end)
+        end
+    end)
+end)
+-- Queue early where supported. A queued loader rechecks the persisted Auto Execute toggle.
+if Persistent.autoExecute then Persistent.queueTeleport() end
+
 Main.Size = UDim2.fromOffset(0, 0)
 task.delay(0.05, function()
     if not destroyed then
         tween(Main, {Size = CONFIG.UISize, Position = getScaledWindowOffset()}, 0.35, Enum.EasingStyle.Back)
     end
 end)
+]=====]
+local __env = _G
+pcall(function() if type(getgenv) == "function" then __env = getgenv() end end)
+__env.__RHAnimePieceV133Source = __source
+_G.__RHAnimePieceV133Source = __source
+local __compile = loadstring or load
+if type(__compile) == "function" then
+    local __runner, __err = __compile(__source)
+    if __runner then __runner() else warn("[Random Hub v1.33] " .. tostring(__err)) end
+else
+    warn("[Random Hub v1.33] This environment cannot compile a Lua script string.")
+end
